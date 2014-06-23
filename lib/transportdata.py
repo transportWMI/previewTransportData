@@ -172,3 +172,23 @@ def separateAlternatingSignal(x):
     separated_signal: list of two arrays (x[2n], x[2n-1])
     """
     return np.array(x[0::2]), np.array(x[1::2])
+
+    
+def averageUpDownSweep(x, num=1):
+    """
+    Calculate x[center+n] + x[center-n] of a signal thereby data recorded as up,
+    then down sweep can be averaged.
+       
+    Parameters
+    ----------
+    x: data (list or numpy array) to average
+    num: apply algorithm num times to average more than once (default: 1)
+    
+    Returns    
+    ----------
+    x_averaged: numpy array of the averaged data
+    """
+    x = np.array(x)
+    for i in range(num):
+        x = (x[0:np.size(x)/2] + x[::-1][0:np.size(x)/2])/2
+    return x
