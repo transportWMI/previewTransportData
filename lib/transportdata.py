@@ -16,12 +16,15 @@ def symmetrizeSignalZero(y, idx = None):
     
     Parameters
     ----------
-    y: numpy array or list of data values to symmetrize
-    idx: index of center to symmetrize around if ommitted len(y)/2 is taken as idx
+    y : array_like 
+        numpy array or list of data values to anti symmtetrize
+    idx : scalar
+        index of center to symmetrize around if ommitted len(y)/2 is taken as idx
     
     Returns
     ----------
-    y_symmetrized: numpy array of dimension size(y)/2
+    y_symmetrized : ndarray
+        numpy array of dimension size(y)/2 of the symmetrized data
     """
     y = np.array(y)
     if not np.size(y)%2:
@@ -43,11 +46,15 @@ def antiSymmetrizeSignalZero(y, idx = None):
         
     Parameters
     ----------
-    y: numpy array or list of data values to anti symmetrize
-    idx: index of center to symmetrize around if ommitted len(y)/2 is taken as idx    
+    y : array_like 
+        numpy array or list of data values to anti symmtetrize
+    idx : scalar
+        index of center to symmetrize around if ommitted len(y)/2 is taken as idx
+    
     Returns
     ----------
-    y_symmetrized: numpy array of dimension size(y)/2
+    y_symmetrized : ndarray
+        numpy array of dimension size(y)/2 of the antisymmetrized data
     """
     y = np.array(y)
     if not np.size(y)%2:
@@ -67,15 +74,18 @@ def antiSymmetrizeSignal(y, symmetryStep):
     Dischard symmetric (around center index or around idx) part of a signal by 
     taking the difference of the signal at x[idx_centre +n] and x[idx_centre +n + symmetry_step]
     get your corresponding x data as x[0:len(y)/]
-            
+                
     Parameters
     ----------
-    y: numpy array or list of data values to anti symmtetrize
-    symmetryStep: expected symmetry of the signal at x[n] occurs at x[n+symmetryStep]
+    y : array_like 
+        numpy array or list of data values to anti symmtetrize
+    symmetryStep : scalar
+        expected symmetry of the signal at x[n] occurs at x[n+symmetryStep]
     
     Returns
     ----------
-    y_symmetrized: numpy array of dimension size(y)/2
+    y_symmetrized : ndarray
+        numpy array of dimension size(y)/2 of the antisymmetrized data
     """
     y = np.array(y)
     if np.size(y)%2:
@@ -96,12 +106,15 @@ def symmetrizeSignal(y, symmetryStep):
     
     Parameters
     ----------
-    y: numpy array or list of data values to anti symmtetrize
-    symmetryStep: expected symmetry of the signal at x[n] occurs at x[n+symmetryStep]
+    y : array_like 
+        numpy array or list of data values to anti symmtetrize
+    symmetryStep : scalar
+        expected symmetry of the signal at x[n] occurs at x[n+symmetryStep]
     
     Returns
     ----------
-    y_symmetrized: numpy array of dimension size(y)/2
+    y_symmetrized : ndarray
+        numpy array of dimension size(y)/2 of the symmetrized data
     """
     y = np.array(y)
     if np.size(y)%2:
@@ -119,15 +132,18 @@ def symmetrizeSignalUpDown(y, symmetryStep):
     the cross sum between up and down sweep of values shifted by symmetry step.
     
     Get the corresponding x data as averageUpDownSweep(x).
-    
+        
     Parameters
     ----------
-    y: numpy array or list of data values to anti symmtetrize
-    symmetryStep: expected symmetry of the signal at x[n] occurs at x[n+symmetryStep]
+    y : array_like 
+        numpy array or list of data values to anti symmtetrize
+    symmetryStep : scalar
+        expected symmetry of the signal at x[n] occurs at x[n+symmetryStep]
     
     Returns
     ----------
-    y_symmetrized: numpy array of dimension size(y)/2
+    y_symmetrized : ndarray
+        numpy array of dimension size(y)/2 of the symmetrized data
     """
     y=np.array(y)
     yL = np.hstack((y[0:len(y)/4],y[2*len(y)/4:3*len(y)/4]))
@@ -148,12 +164,15 @@ def antiSymmetrizeSignalUpDown(y, symmetryStep):
     
     Parameters
     ----------
-    y: numpy array or list of data values to anti symmtetrize
-    symmetryStep: expected symmetry of the signal at x[n] occurs at x[n+symmetryStep]
+    y : array_like 
+        numpy array or list of data values to anti symmtetrize
+    symmetryStep : scalar
+        expected symmetry of the signal at x[n] occurs at x[n+symmetryStep]
     
     Returns
     ----------
-    y_symmetrized: numpy array of dimension size(y)/2
+    y_symmetrized : ndarray
+        numpy array of dimension size(y)/2 of the antisymmetrized data
     """
     y=np.array(y)
     yL = np.hstack((y[0:len(y)/4],y[2*len(y)/4:3*len(y)/4])) 
@@ -169,7 +188,7 @@ def separateAlternatingSignal(x):
 
     Returns    
     ----------
-    separated_signal: list of two arrays (x[2n], x[2n-1])
+    separated_signal : list of two arrays (x[2n], x[2n-1])
     """
     return np.array(x[0::2]), np.array(x[1::2])
 
@@ -181,12 +200,12 @@ def averageUpDownSweep(x, num=1):
        
     Parameters
     ----------
-    x: data (list or numpy array) to average
-    num: apply algorithm num times to average more than once (default: 1)
+    x : data (list or numpy array) to average
+    num : apply algorithm num times to average more than once (default: 1)
     
     Returns    
     ----------
-    x_averaged: numpy array of the averaged data
+    x_averaged : numpy array of the averaged data
     """
     x = np.array(x)
     for i in range(num):
