@@ -96,7 +96,7 @@ class plotWidget(QWidget):
         vlayout.addWidget(self.curveDialog)
         self.setLayout(vlayout)
         
-    # Here happens the stuff you want to apply to the data @ commit and befor plot
+    # Here happens the stuff you want to apply to the data @ commit and before plotting
     def processData(self):
         x = self.x
         y = self.y
@@ -197,7 +197,7 @@ class previewTransportDataWindow(QWidget):
         self.plotButton.setEnabled(False)
         
     def selectFile(self):
-        self.fileTextWindow.setText(QFileDialog.getOpenFileName(self,u"Open File","",u"TDMS (*.tdms)"))
+        self.fileTextWindow.setText(QFileDialog.getOpenFileName(self,u"Open File","",u"TDMS (*.tdms);;All files (*.*)"))
         #read TdmsFile an fill groupBox        
         self.tdmsFile = nptdms.TdmsFile(self.fileTextWindow.toPlainText())
         self.groupList = self.tdmsFile.groups()

@@ -143,14 +143,22 @@ def symmetrizeSignalUpDown(y, symmetryStep):
     """
     y=np.array(y)
  
-    yL = np.hstack((y[0:len(y)/4], # first quarter compared w/ 
-                    y[len(y)/2:3*len(y)/4][::-1] - (y[3*len(y)/4]-y[len(y)/4]))) #third quarter 
-                    
-    yU = np.hstack((y[3*len(y)/4:][::-1] - (y[3*len(y)/4]-y[len(y)/4]), # fourth quarter cmp w/
-                   y[len(y)/4:len(y)/2]))  # second quarter 
-
-    y_sym = np.hstack((symmetrizeSignal(yL, symmetryStep), symmetrizeSignal(yU, symmetryStep))[::-1])
-      
+    yU = y[0:len(y)/2] # up sweep (for the sake of the argument)                    
+    yD = y[len(y)/2:][::-1] # down sweep w/ same axis
+    
+    sL = np.zeros(len(yU)-symmetryStep)
+    for idx in range(0, len(sL)):
+        sL[idx] = (yU[idx] + yD[idx+symmetryStep])/2.-(yU[0] + yD[0+symmetryStep])/2.
+    return sL
+    
+    
+    sU = np.zeros(len(yU)-symmetryStep)
+    for idx in range(0, len(sU)):
+        sU[idx] = (yD[idx][::-1] + yU[idx+symmetryStep][::-1])/2.-(yD[::-1][0] + yU[::-1][0+symmetryStep])/2.
+    return sU
+    
+    y_sym = np.hstack(sL,sU[::-1])
+    
     return y_sym
     
 
@@ -173,17 +181,17 @@ def antiSymmetrizeSignalUpDown(y, symmetryStep):
     y_symmetrized : ndarray
         numpy array of dimension size(y)/2 of the antisymmetrized data
     """
-    import matplotlib.pyplot as plt
     y=np.array(y)
 
-    yL = np.hstack((y[0:len(y)/4], # first quarter compared w/ 
-                    y[len(y)/2:3*len(y)/4][::-1] - (y[3*len(y)/4]-y[len(y)/4]))) #third quarter 
-                    
-    yU = np.hstack((y[3*len(y)/4:][::-1] - (y[3*len(y)/4]-y[len(y)/4]), # fourth quarter cmp w/
-                   y[len(y)/4:len(y)/2]))  # second quarter 
-
-    plt.plot(np.arange(0,len(yU)*2,2), yU, 'k', linewidth = 3, color = "b")
-    y_sym = np.hstack((antiSymmetrizeSignal(yL, symmetryStep), antiSymmetrizeSignal(yU, symmetryStep)))
+    yU = y[0:len(y)/2] # up sweep (for the sake of the argument)                    
+    yD = y[len(y)/2:][::-1] # down sweep w/ same axis
+    
+    s = np.zeros(len(yU)-symmetryStep)
+    for idx in range(0, len(s)):
+        s[idx] = (yU[idx] - yD[idx+symmetryStep])/2.-(yU[0] + yD[0+symmetryStep])/2.
+    return s
+    
+    y_sym = s
     
     return y_sym
     
@@ -216,3 +224,132 @@ def averageUpDownSweep(x, num=1):
     for i in range(num):
         x = (x[0:np.size(x)/2] + x[::-1][0:np.size(x)/2])/2
     return x
+    
+    
+def preprocessTransportData(field, angle, U, I = None, fields = None, n_angle_points = None, delta_method = True):
+    """
+    Parse transport rotational data that has been recorded at various fields
+    and return a dict that contains the data for each field value.
+    
+    Parameters
+    ----------
+    field : tuple
+        Field values as they are recorded in the experiment (2 for each angle
+        if the delta method is applied, otherwise one per angle)
+        Alternatively (tuple) of unique field points in conjunction w/ n_angle_points
+        to disable automatic detection.
+    angle : tuple
+        Field values as they are recorded in the experiment (each angle twice
+        if the delta method is applied)
+    U : tuple
+        Recorded Voltage. If the delta method is applied and I is not specified
+        it is assumed that the first entry corresponds to a positive Voltage
+    I : tuple (optional)
+        Applied current for each sweep point. If provided, the U/I is evaluated
+        at each sweep point instead and R = U/I is returned instead of U
+    n_angle_points: scalar (optional)
+        Disable automatic detection of angle points, for aborted measurements
+    
+    Returns
+    ----------
+    data : dict of {dict for each field}
+        field : 
+            unique field values
+        angle : 
+            unique angles (0,1,2,...2,1,0 for up-down sweep, not 0,0,1,1,… though)
+        I : 
+            None, if I is not specified, [min(I), max(I)] of the provided I values instead
+        signal_diff :  only if delta_method == True
+            signal[2n-1]-signal[2n]
+        signal_sum : only if delta_method == True
+            signal[2n-1]+signal[2n]        
+        signal_raw1 : only if delta_method == True
+            signal[2n-1]
+        signal_raw2 : only if delta_method == True
+            signal[2n] :
+        signal : only if delta_method == False
+            signal[:]
+        signal specifies U for the field "field" in the dict if function 
+        argument I is not provided . otherwise, if I is provided, signal specifies R = U/I
+
+        
+    Usage example
+    ----------    
+    Unpacking a dict for the values
+    
+    >>> preprocessTransportData(**{"fields": ..., "angle": ..., "I": .., "U": ...}, deltaMethod = False)
+    
+    
+    Or directly from a tmds file:
+    
+    >>> from nptmds import TdmsFile
+    >>> tdms = TdmsFile("2014-06-25/YY84/2014-06-23-YY84-A02-admr_300K.tdms")
+    >>> field = tdms.channel_data("Read.K2400_long_oopj", "IPS.TargetField")
+    >>> angle =  tdms.channel_data("Read.K2400_long_oopj", "owis.Angle (deg)")
+    >>> structuredData  = preprocessTransportData(field, angle, 
+        tdms.channel_data("Read.K2400_long_oopj", "K2400U"))
+    
+    """        
+    
+    l.debug("Loading data for dim(field) = %d,  dim(angle) = %d,  dim(U) = %d"%(len(field), len(angle), len(U)))
+    if np.size(fields) != np.size(angle):
+        # automatically calculate field points
+        uniqueFields, uniqueFieldStartIdx = np.unique(field, return_index=True)
+        l.debug("found unique fields in data: ")
+        l.debug(uniqueFields)
+    elif n_angle_points:
+        # get field indices by user provided parameters
+        uniqueFields = fields
+        uniqueFieldStartIdx = np.zeros_like()
+        for idx, _ in uniqueFields:
+            uniqueFieldStartIdx[idx] = idx*n_angle_points
+            
+    # sort fields by index not by field value (so the last field is also the last measurement)
+    uniqueFields = uniqueFields[np.argsort(uniqueFieldStartIdx)]
+    uniqueFieldStartIdx = np.sort(uniqueFieldStartIdx)
+    
+    data = []
+    for idx, uniqueField in enumerate(uniqueFields):
+        l.debug("Parsing data for field %.2f T."%uniqueField)
+        if idx == np.size(uniqueFields)-1:
+            # last rotation might be unfinished, just taking the remaining points
+            if not (uniqueFieldStartIdx[idx]-np.size(angle)-1)%2 and delta_method == True:
+                stopIdx = np.size(angle)-1
+                l.warn("Ditching last datapoint of the last rotation in order to be able to symmetrize")
+            else:
+                stopIdx = np.size(angle)
+            fieldRange = np.arange(uniqueFieldStartIdx[idx],stopIdx)
+        else:
+            # complete measurements
+            fieldRange = np.arange(uniqueFieldStartIdx[idx],uniqueFieldStartIdx[idx+1], 
+                                   np.sign(uniqueFieldStartIdx[idx+1]-uniqueFieldStartIdx[idx]))
+        l.debug("It's field index range is (%d, %d)", fieldRange[0], fieldRange[-1])
+
+        if I:
+            signal = U/I # return R instead of U
+            returnI = [min(I), max(I)] # return the "absolute" of I in the dict
+        else:
+            signal = U # return plain voltage
+            returnI = None    
+
+
+        angle = np.array(angle)    
+        if delta_method:
+            data.append({
+                "field": uniqueField,
+                "angle": angle[fieldRange][0::2],
+                "I": returnI,
+                "signal_diff": signal[fieldRange][0::2]-signal[fieldRange][1::2],
+                "signal_sum":  signal[fieldRange][0::2]+signal[fieldRange][1::2],
+                "signal_raw1": signal[fieldRange][0::2],
+                "signal_raw2": signal[fieldRange][1::2]
+                })
+        else:
+            data.append({
+                "field": uniqueField,
+                "angle": angle[fieldRange],
+                "I": returnI,
+                "signal": signal[fieldRange]
+                })
+        
+    return data 
