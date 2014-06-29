@@ -88,12 +88,10 @@ def antiSymmetrizeSignal(y, symmetryStep):
         numpy array of dimension size(y)/2 of the antisymmetrized data
     """
     y = np.array(y)
-    if np.size(y)%2:
-        raise Exception("Data needs to have an even number of elements")
         
-    s = np.zeros(len(y)/2)
-    for idx in range(0,len(y)/2):
-        s[idx] = (y[idx] - y[idx+symmetryStep])/2
+    s = np.zeros(len(y)-symmetryStep)
+    for idx in range(0, len(s)):
+        s[idx] = (y[idx] - y[idx+symmetryStep])/2.-(y[0] - y[0+symmetryStep])/2.
     return s
 
 
@@ -117,12 +115,10 @@ def symmetrizeSignal(y, symmetryStep):
         numpy array of dimension size(y)/2 of the symmetrized data
     """
     y = np.array(y)
-    if np.size(y)%2:
-        raise Exception("Data needs to have an even number of elements")
         
-    s = np.zeros(len(y)/2)
-    for idx in range(0,len(y)/2):
-        s[idx] = (y[idx] + y[idx+symmetryStep])/2
+    s = np.zeros(len(y)-symmetryStep)
+    for idx in range(0, len(s)):
+        s[idx] = (y[idx] + y[idx+symmetryStep])/2.-(y[0] + y[0+symmetryStep])/2.
     return s
 
 
@@ -146,12 +142,15 @@ def symmetrizeSignalUpDown(y, symmetryStep):
         numpy array of dimension size(y)/2 of the symmetrized data
     """
     y=np.array(y)
-    yL = np.hstack((y[0:len(y)/4],y[2*len(y)/4:3*len(y)/4]))
-    yU = np.hstack((y[len(y)/4:2*len(y)/4],y[3*len(y)/4:]))
-    
-    y_sym = np.hstack((symmetrizeSignal(yL, symmetryStep), symmetrizeSignal(yU, symmetryStep)))
-    
-    
+ 
+    yL = np.hstack((y[0:len(y)/4], # first quarter compared w/ 
+                    y[len(y)/2:3*len(y)/4][::-1] - (y[3*len(y)/4]-y[len(y)/4]))) #third quarter 
+                    
+    yU = np.hstack((y[3*len(y)/4:][::-1] - (y[3*len(y)/4]-y[len(y)/4]), # fourth quarter cmp w/
+                   y[len(y)/4:len(y)/2]))  # second quarter 
+
+    y_sym = np.hstack((symmetrizeSignal(yL, symmetryStep), symmetrizeSignal(yU, symmetryStep))[::-1])
+      
     return y_sym
     
 
@@ -174,10 +173,16 @@ def antiSymmetrizeSignalUpDown(y, symmetryStep):
     y_symmetrized : ndarray
         numpy array of dimension size(y)/2 of the antisymmetrized data
     """
+    import matplotlib.pyplot as plt
     y=np.array(y)
-    yL = np.hstack((y[0:len(y)/4],y[2*len(y)/4:3*len(y)/4])) 
-    yU = np.hstack((y[len(y)/4:2*len(y)/4],y[3*len(y)/4:]))
-    
+
+    yL = np.hstack((y[0:len(y)/4], # first quarter compared w/ 
+                    y[len(y)/2:3*len(y)/4][::-1] - (y[3*len(y)/4]-y[len(y)/4]))) #third quarter 
+                    
+    yU = np.hstack((y[3*len(y)/4:][::-1] - (y[3*len(y)/4]-y[len(y)/4]), # fourth quarter cmp w/
+                   y[len(y)/4:len(y)/2]))  # second quarter 
+
+    plt.plot(np.arange(0,len(yU)*2,2), yU, 'k', linewidth = 3, color = "b")
     y_sym = np.hstack((antiSymmetrizeSignal(yL, symmetryStep), antiSymmetrizeSignal(yU, symmetryStep)))
     
     return y_sym
