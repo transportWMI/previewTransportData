@@ -98,8 +98,9 @@ class plotWidget(QWidget):
         
     # Here happens the stuff you want to apply to the data @ commit and before plotting
     def processData(self):
-        x = self.x
-        y = self.y
+        x = transdat.separateAlternatingSignal(self.x)[0]
+        y = transdat.separateAlternatingSignal(self.y)[0] -  transdat.separateAlternatingSignal(self.y)[1]
+            
         if self.average:
             x = x
         if self.norm:
