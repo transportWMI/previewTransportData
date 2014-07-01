@@ -10,11 +10,12 @@ from guidata.qt.QtCore import SIGNAL
 from guiqwt.plot import CurveDialog
 from guiqwt.builder import make
 
-from scipy import optimize
 import numpy as np
 import nptdms
 import re
-
+import logging as l
+l.basicConfig(format='%(levelname)s:%(message)s', level=l.DEBUG)
+ 
 import lib.transportdata as transdat
 
 class plotWidget(QWidget):
@@ -29,8 +30,6 @@ class plotWidget(QWidget):
         self.average = False
         self.symmetrize = False
         self.antiSymmetrize = False
-        self.fitCosSq = False
-        self.fitCos = False
         self.norm = False
 
         #initialize data storage
@@ -47,7 +46,9 @@ class plotWidget(QWidget):
         self.plot.set_antialiasing(True)
         self.plot.do_autoscale()
         
-        # initialize layout    
+
+        # Initialize layout    
+        # Preprocessing
         self.checkBoxSymm = QCheckBox("Symmetrize")
         self.checkBoxAnti = QCheckBox("Antisymmetrize")
         self.checkBoxAverage = QCheckBox("Average")
@@ -55,16 +56,24 @@ class plotWidget(QWidget):
         self.checkBoxFitCos = QCheckBox("Fit Cos")
         self.checkBoxNorm = QCheckBox("Normalize")
         
-        self.commitButton = QPushButton(u"Commit Changes")
+        self.buttonCommit = QPushButton(u"Commit Changes")
         
         symmOffsetLabel = QLabel("Symmetry Step")
         self.symmOffsetField = QLineEdit() 
         self.symmOffsetField.setMaximumWidth(150)
         self.symmOffsetField.setValidator(QIntValidator())
         
+        # Fitting
+        self.buttonFit = QPushButton(u"fitButton")
+        self.comboBoxFit = QComboBox()
+        self.comboBoxFit.setMinimumWidth(200)
+        self.comboBoxFit.addItem(u"cos()")
+        self.comboBoxFit.addItem(u"cos²()")
+        self.connect(self.buttonFit, SIGNAL('clicked()'), self.dispatchFit)
+
         
-        # connect SIGNALs
-        self.connect(self.commitButton, SIGNAL('clicked()'), self.commitChanges)
+        # Connect SIGNALs
+        self.connect(self.buttonCommit, SIGNAL('clicked()'), self.commitChanges)
         # should be removed if the button is used sooner or later
         self.checkBoxAnti.stateChanged.connect(self.updateCheckboxes)        
         self.checkBoxSymm.stateChanged.connect(self.updateCheckboxes)        
@@ -73,7 +82,7 @@ class plotWidget(QWidget):
         self.checkBoxFitCosSq.stateChanged.connect(self.updateCheckboxes)        
         self.checkBoxAverage.stateChanged.connect(self.updateCheckboxes)        
                 
-        # make layout        
+        # Make layout        
         #  first row
         hlayout = QHBoxLayout()
         hlayout.addStretch(1)
@@ -81,14 +90,14 @@ class plotWidget(QWidget):
         hlayout.addWidget(self.checkBoxAverage)
         hlayout.addWidget(self.checkBoxSymm)
         hlayout.addWidget(self.checkBoxAnti)
-        hlayout.addWidget(self.checkBoxFitCos)
-        hlayout.addWidget(self.checkBoxFitCosSq)
-        hlayout.addWidget(self.commitButton)
+        hlayout.addWidget(self.buttonCommit)
         #  second row
         hlayout2 = QHBoxLayout()
-        hlayout2.addStretch(5)
+        hlayout2.addStretch(2)
         hlayout2.addWidget(symmOffsetLabel)
         hlayout2.addWidget(self.symmOffsetField)
+        hlayout2.addWidget(self.comboBoxFit)
+        hlayout2.addWidget(self.buttonFit)
         #  vertical layout
         vlayout = QVBoxLayout()
         vlayout.addLayout(hlayout)
@@ -109,22 +118,6 @@ class plotWidget(QWidget):
             y = transdat.SymmetrizeSignal(y)
         if self.antiSymmetrize:
             y = transdat.antiSymmetrizeSignal(y)
-        if self.fitCos:
-            fitfunc = lambda p,x: p[0]*np.sin(np.pi*(x-p[2])/p[1])+p[3]
-            errfunc = lambda p,x,y: fitfunc(p,x) - y
-            p0 = [max(y)-min(y),360,0,min(y)]
-            p1, success = optimize.leastsq(errfunc, p0[:],args=(x,y))
-            angle = np.linspace(x.min(),x.max(),4*len(x))
-            self.plot.add_item(make.curve(angle,fitfunc(p1,angle),color='r'))
-        if self.fitCosSq:
-            fitfunc = lambda p,x: p[0]*np.cos(np.pi*(x-p[1])/p[2])**2+p[3]
-            errfunc = lambda p,x,y: fitfunc(p,x) - y
-            p0 = [max(y)-min(y),0,180,(max(y)-min(y))/2]
-            p1, success = optimize.leastsq(errfunc, p0[:],args=(x,y),factor = 0.1)
-            print success
-            print p1
-            angle = np.linspace(x.min(),x.max(),4*len(x))
-            self.plot.add_item(make.curve(angle,fitfunc(p1,angle),color='r'))
         return (x,y)
     
     def commitChanges(self):
@@ -143,10 +136,57 @@ class plotWidget(QWidget):
         self.average = self.checkBoxAverage.checkState()
         self.symmetrize = self.checkBoxSymm.checkState()
         self.antiSymmetrize = self.checkBoxAnti.checkState()
-        self.fitCosSq = self.checkBoxFitCosSq.checkState()
-        self.fitCos = self.checkBoxFitCos.checkState()
         self.norm = self.checkBoxNorm.checkState()
+    
+    def dispatchFit(self):
+        #FIXME: this should probably be a switch statement or combined with a
+        # list of available fit routines
+        if self.comboBoxFit.currentIndex() == 0:
+            self.fitCos(self.plot.get_selected_items()[0])
+        elif self.comboBoxFit.currentIndex() == 1:
+            self.fitCosSq(self.plot.get_selected_items()[0])
+                
+        
+    def fitCos(self, curveItem):
+        """ 
+        FIXME: qwtdata comes with quite nice fitting tools. use them! instead of tayloring your own stuff again...
+        curveItem : guiqwt.curve.CurveItem 
+            retrieve e.g. w/ win.widget.plot.get_selected_items()[0]
+        """
+        # get data from curve (this is actually "built-in method x of QwtArrayData object")
+        # and does not have iterators implemented
+        x = np.array(self.qwtArrayDoubleToList(curveItem.data().xData()))
+        y = np.array(self.qwtArrayDoubleToList(curveItem.data().yData()))
 
+        # fit using a cosin
+        amplitude, frequency, phase, y0 , yFit= transdat.fitcos(self.ndarrayToList(x),self.ndarrayToList(y), fitY0 = True)
+    
+        self.plot.add_item(make.curve(self.ndarrayToList(x),self.ndarrayToList(yFit),color='r'))
+        print amplitude, frequency, phase, y0
+
+    def fitCosSq(self, curveItem):
+        """ Untested. Probably not working yet """
+        x = np.array(self.qwtArrayDoubleToList(curveItem.data().xData()))
+        y = np.array(self.qwtArrayDoubleToList(curveItem.data().yData()))
+
+        # fit using a cosin
+        amplitude, frequency, phase, y0 , yFit= transdat.fitcos_squared(self.ndarrayToList(x),self.ndarrayToList(y), fitY0 = True)
+    
+        self.plot.add_item(make.curve(self.ndarrayToList(x),self.ndarrayToList(yFit),color='r'))
+        print amplitude, frequency, phase, y0
+
+
+    def qwtArrayDoubleToList(self, array):
+        x = []
+        for i in range(0,array.size()):
+            x.append(array[i])
+        return x    
+    
+    def ndarrayToList(self, array):
+        x = []
+        for i in range(0,np.size(array)):
+            x.append(array[i])
+        return x
         
 class previewTransportDataWindow(QWidget):
     '''
@@ -194,17 +234,20 @@ class previewTransportDataWindow(QWidget):
         #initialize plot widget
         self.widget = plotWidget(self)
         self.layout().addWidget(self.widget,2,0,1,4)
-        self.widget.commitButton.setEnabled(False)
+        self.widget.buttonCommit.setEnabled(False)
         self.plotButton.setEnabled(False)
         
     def selectFile(self):
         self.fileTextWindow.setText(QFileDialog.getOpenFileName(self,u"Open File","",u"TDMS (*.tdms);;All files (*.*)"))
         #read TdmsFile an fill groupBox        
         self.tdmsFile = nptdms.TdmsFile(self.fileTextWindow.toPlainText())
-        self.groupList = self.tdmsFile.groups()
         self.groupBox.clear()
-        for group in self.groupList:
-            self.groupBox.addItem(group)
+        self.groupList = []
+        for group in self.tdmsFile.groups():
+            if group.startswith("Read."):
+                self.groupBox.addItem(group)
+                self.groupList.append(group)
+
         #connect signal to activated
         self.groupBox.activated['QString'].connect(self.fillChannelBoxes)
 
@@ -220,23 +263,23 @@ class previewTransportDataWindow(QWidget):
         self.plotButton.setEnabled(True)
         
     def plot(self):
-        self.widget.commitButton.setEnabled(True)
+        self.widget.buttonCommit.setEnabled(True)
         x = self.channelList[self.xChannelBox.currentIndex()].data
         y = self.channelList[self.yChannelBox.currentIndex()].data
         self.widget.newData(x,y)
         
-def previewTransportData():
-    """
-    Preview transport measurement data
-    """
-    # -- Create QApplication
-    import guidata
-    _app = guidata.qapplication()
-    # --
-    win = previewTransportDataWindow()
-    
-    win.show()
-    _app.exec_()
+#def previewTransportData():
+#    """
+#    Preview transport measurement data
+#    """
+#    # -- Create QApplication
+import guidata
+_app = guidata.qapplication()
+# --
+win = previewTransportDataWindow()
+
+win.show()
+#    _app.exec_()
     
      
     # onchange symmetrize(difference, sum, raw); onchange normalize(to 

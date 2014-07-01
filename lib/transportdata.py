@@ -8,7 +8,10 @@ Shared functions for processing transport measurement data.
 """
 
 import numpy as np
-    
+import logging as l
+import scipy.optimize as optimize
+import scipy.fftpack as fftpack
+
 def symmetrizeSignalZero(y, idx = None):
     """
     Dischard antisymmetric (around center index or around idx) part by 
@@ -203,6 +206,10 @@ def separateAlternatingSignal(x):
     ----------
     separated_signal : list of two arrays (x[2n], x[2n-1])
     """
+    if np.size(x)%2:
+        x = x[:-1]
+        l.warn("""Data does not have an even number of elements. Dropping last datapoint. 
+        Maybe the data has not been recorded using a delta method?""")
     return np.array(x[0::2]), np.array(x[1::2])
 
     
@@ -353,3 +360,97 @@ def preprocessTransportData(field, angle, U, I = None, fields = None, n_angle_po
                 })
         
     return data 
+    
+def fitcos(x, y, fitY0 = False, guess = None, debug=False):
+    def cos(x, amplitude, frequency, phase):
+        return amplitude * np.cos(frequency * x + phase)   
+    def cos_y0(x, amplitude, frequency, phase, y0):
+        return amplitude * np.cos(frequency * x + phase) + y0    
+
+    x = np.array(x)
+    y = np.array(y)    
+    if not guess:       
+        # fourier transform to find guess value for frequency
+        yhat = fftpack.rfft(y)
+        idx = (yhat**2).argmax()
+        freqs = fftpack.rfftfreq(np.size(x), d = (x[0]-x[1])/(2*np.pi))
+        frequency0 = freqs[idx]
+        if frequency0 == np.Inf:
+            frequency0 = 0.001
+        # maximum to find guess for amplitude
+        amplitude0 = max(y)
+        y00 = (max(y)-min(y))/2+min(y)
+        phase0 = 0.
+    else:
+        amplitude0 = guess[0]
+        frequency0 = guess[1]
+        phase0 = guess[2]
+        if fitY0:
+            y00 = guess[3]
+
+    if fitY0:
+        guess = [amplitude0, abs(frequency0), phase0, y00]
+        if debug: print(guess)
+        (amplitude, frequency, phase, y0), pcov = optimize.curve_fit(
+            cos_y0,
+            x, y,
+            guess)
+        yFit = cos_y0(x, amplitude, frequency, +phase, y0)
+        return (amplitude, frequency, phase, y0, yFit)
+    else:
+        guess = [amplitude0, abs(frequency0), phase0]
+        if debug: print(guess)
+        (amplitude, frequency, phase), pcov = optimize.curve_fit(
+            cos,
+            x, y,
+            guess)
+        yFit = cos(x, amplitude, frequency, +phase)
+        return (amplitude, frequency, phase, 0, yFit)
+        
+        
+def fitcos_squared(x, y, fitY0 = False, guess = None, debug=False):
+    """ untested, probably not working correctly"""
+    def cossq(x, amplitude, frequency, phase):
+        return amplitude * np.cos(frequency * x + phase)**2   
+    def cossq_y0(x, amplitude, frequency, phase, y0):
+        return amplitude * np.cos(frequency * x + phase)**2 + y0    
+
+    x = np.array(x)
+    y = np.array(y)    
+    if not guess:       
+        # fourier transform to find guess value for frequency
+        yhat = fftpack.rfft(y)
+        idx = (yhat**2).argmax()
+        freqs = fftpack.rfftfreq(np.size(x), d = (x[0]-x[1])/(2*np.pi))
+        frequency0 = freqs[idx]
+        if frequency0 == np.Inf:
+            frequency0 = 0.001
+        # maximum to find guess for amplitude
+        amplitude0 = max(y)
+        y00 = (max(y)-min(y))/2+min(y)
+        phase0 = 0.
+    else:
+        amplitude0 = guess[0]
+        frequency0 = guess[1]
+        phase0 = guess[2]
+        if fitY0:
+            y00 = guess[3]
+
+    if fitY0:
+        guess = [amplitude0, abs(frequency0), phase0, y00]
+        if debug: print(guess)
+        (amplitude, frequency, phase, y0), pcov = optimize.curve_fit(
+            cossq_y0,
+            x, y,
+            guess)
+        yFit = cossq_y0(x, amplitude, frequency, +phase, y0)
+        return (amplitude, frequency, phase, y0, yFit)
+    else:
+        guess = [amplitude0, abs(frequency0), phase0]
+        if debug: print(guess)
+        (amplitude, frequency, phase), pcov = optimize.curve_fit(
+            cos,
+            x, y,
+            guess)
+        yFit = cossq(x, amplitude, frequency, +phase)
+        return (amplitude, frequency, phase, 0, yFit)
