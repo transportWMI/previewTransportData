@@ -13,11 +13,23 @@ from guiqwt.builder import make
 import numpy as np
 import nptdms
 import re
-import logging as l
-l.basicConfig(format='%(levelname)s:%(message)s', level=l.DEBUG)
- 
+import logging as l 
 import lib.transportdata as transdat
 
+l.basicConfig(format='%(levelname)s:%(message)s', level=l.DEBUG)
+
+def qwtArrayDoubleToList(array):
+    x = []
+    for i in range(0,array.size()):
+        x.append(array[i])
+    return x    
+
+def ndarrayToList(array):
+    x = []
+    for i in range(0,np.size(array)):
+        x.append(array[i])
+    return x
+    
 class plotWidget(QWidget):
     """
     Will be done soon
@@ -49,11 +61,15 @@ class plotWidget(QWidget):
 
         # Initialize layout    
         # Preprocessing
-        self.checkBoxSymm = QCheckBox("Symmetrize")
-        self.checkBoxAnti = QCheckBox("Antisymmetrize")
-        self.checkBoxAverage = QCheckBox("Average")
-        self.checkBoxFitCosSq = QCheckBox("Fit Cos^2")
-        self.checkBoxFitCos = QCheckBox("Fit Cos")
+        self.comboBoxDeltaMethod = QComboBox()
+        self.comboBoxDeltaMethod.addItem(u"Raw data [n]")        
+        self.comboBoxDeltaMethod.addItem(u"Raw data [2n-1]")
+        self.comboBoxDeltaMethod.addItem(u"Raw data [2n]")
+        self.comboBoxDeltaMethod.addItem(u"Diff ([2n-1]-[2n])/2")        
+        self.comboBoxDeltaMethod.addItem(u"Sum ([2n-1]+[2n])/2")  
+        self.checkBoxSymmetrize = QCheckBox("Symmetrize")
+        self.checkBoxAntiSymmetrize = QCheckBox("Antisymmetrize")
+        self.checkBoxAverage = QCheckBox("Average Up-Down-Sweep")
         self.checkBoxNorm = QCheckBox("Normalize")
         
         self.buttonCommit = QPushButton(u"Commit Changes")
@@ -75,21 +91,19 @@ class plotWidget(QWidget):
         # Connect SIGNALs
         self.connect(self.buttonCommit, SIGNAL('clicked()'), self.commitChanges)
         # should be removed if the button is used sooner or later
-        self.checkBoxAnti.stateChanged.connect(self.updateCheckboxes)        
-        self.checkBoxSymm.stateChanged.connect(self.updateCheckboxes)        
+        self.checkBoxAntiSymmetrize.stateChanged.connect(self.updateCheckboxes)        
+        self.checkBoxSymmetrize.stateChanged.connect(self.updateCheckboxes)        
         self.checkBoxNorm.stateChanged.connect(self.updateCheckboxes)        
-        self.checkBoxFitCos.stateChanged.connect(self.updateCheckboxes)        
-        self.checkBoxFitCosSq.stateChanged.connect(self.updateCheckboxes)        
         self.checkBoxAverage.stateChanged.connect(self.updateCheckboxes)        
                 
         # Make layout        
         #  first row
         hlayout = QHBoxLayout()
-        hlayout.addStretch(1)
+        hlayout.addWidget(self.comboBoxDeltaMethod)
         hlayout.addWidget(self.checkBoxNorm)
         hlayout.addWidget(self.checkBoxAverage)
-        hlayout.addWidget(self.checkBoxSymm)
-        hlayout.addWidget(self.checkBoxAnti)
+        hlayout.addWidget(self.checkBoxSymmetrize)
+        hlayout.addWidget(self.checkBoxAntiSymmetrize)
         hlayout.addWidget(self.buttonCommit)
         #  second row
         hlayout2 = QHBoxLayout()
@@ -107,15 +121,34 @@ class plotWidget(QWidget):
         
     # Here happens the stuff you want to apply to the data @ commit and before plotting
     def processData(self):
-        x = transdat.separateAlternatingSignal(self.x)[0]
-        y = transdat.separateAlternatingSignal(self.y)[0] -  transdat.separateAlternatingSignal(self.y)[1]
+        if self.comboBoxDeltaMethod.currentIndex() == 0:
+            # plain raw data
+            x = self.x
+            y = self.y
+        elif self.comboBoxDeltaMethod.currentIndex() == 1:
+            # odd raw data values
+            x = transdat.separateAlternatingSignal(self.x)[0]
+            y = transdat.separateAlternatingSignal(self.y)[0]
+        elif self.comboBoxDeltaMethod.currentIndex() == 2:
+            # even raw data values
+            x = transdat.separateAlternatingSignal(self.x)[1]
+            y = transdat.separateAlternatingSignal(self.y)[1]
+        elif self.comboBoxDeltaMethod.currentIndex() == 3:
+            # difference of odd - even values
+            x = transdat.separateAlternatingSignal(self.x)[0]
+            y = transdat.separateAlternatingSignal(self.y)[0] -  transdat.separateAlternatingSignal(self.y)[1]
+        elif self.comboBoxDeltaMethod.currentIndex() == 4:
+            # difference of odd - even values
+            x = transdat.separateAlternatingSignal(self.x)[0]
+            y = transdat.separateAlternatingSignal(self.y)[0] +  transdat.separateAlternatingSignal(self.y)[1]
             
         if self.average:
-            x = x
+            x = transdat.averageUpDownSweep(x)
+            y = transdat.averageUpDownSweep(y)
         if self.norm:
-            y = y-max(y)
+            y = y-min(y)
         if self.symmetrize:
-            y = transdat.SymmetrizeSignal(y)
+            y = transdat.symmetrizeSignal(y)
         if self.antiSymmetrize:
             y = transdat.antiSymmetrizeSignal(y)
         return (x,y)
@@ -133,60 +166,64 @@ class plotWidget(QWidget):
         self.commitChanges()
     
     def updateCheckboxes(self,i):
+        """
+        FIXME: What do you need this for? 
+        FIXME: Document what i's supposed to do (nothing obviously)
+        """
         self.average = self.checkBoxAverage.checkState()
-        self.symmetrize = self.checkBoxSymm.checkState()
-        self.antiSymmetrize = self.checkBoxAnti.checkState()
+        self.symmetrize = self.checkBoxSymmetrize.checkState()
+        self.antiSymmetrize = self.checkBoxAntiSymmetrize.checkState()
         self.norm = self.checkBoxNorm.checkState()
-    
+
+    # %% Fitting routines    
     def dispatchFit(self):
-        #FIXME: this should probably be a switch statement or combined with a
+        """
+        Choose correct fit routine according to comboBoxFit.currentIndex() and 
+        execute the appropriate function.
+        """
         # list of available fit routines
         if self.comboBoxFit.currentIndex() == 0:
             self.fitCos(self.plot.get_selected_items()[0])
         elif self.comboBoxFit.currentIndex() == 1:
             self.fitCosSq(self.plot.get_selected_items()[0])
-                
-        
+                        
     def fitCos(self, curveItem):
         """ 
-        FIXME: qwtdata comes with quite nice fitting tools. use them! instead of tayloring your own stuff again...
+        Fit a cosin to the curve stored in curveItem and plot
+        
+        FIXME: qwtdata comes with quite nice fitting tools. use them instead of tayloring your own stuff again...
+        Parameters
+        -----------
         curveItem : guiqwt.curve.CurveItem 
             retrieve e.g. w/ win.widget.plot.get_selected_items()[0]
         """
         # get data from curve (this is actually "built-in method x of QwtArrayData object")
         # and does not have iterators implemented
-        x = np.array(self.qwtArrayDoubleToList(curveItem.data().xData()))
-        y = np.array(self.qwtArrayDoubleToList(curveItem.data().yData()))
+        x = np.array(qwtArrayDoubleToList(curveItem.data().xData()))
+        y = np.array(qwtArrayDoubleToList(curveItem.data().yData()))
 
         # fit using a cosin
-        amplitude, frequency, phase, y0 , yFit= transdat.fitcos(self.ndarrayToList(x),self.ndarrayToList(y), fitY0 = True)
+        amplitude, frequency, phase, y0 , yFit= transdat.fitcos(ndarrayToList(x),ndarrayToList(y), fitY0 = True)
     
-        self.plot.add_item(make.curve(self.ndarrayToList(x),self.ndarrayToList(yFit),color='r'))
-        print amplitude, frequency, phase, y0
+        self.plot.add_item(make.curve(ndarrayToList(x),ndarrayToList(yFit),color='r'))
+        self.plot.replot()
+        print(amplitude, frequency, phase, y0)
+        
 
     def fitCosSq(self, curveItem):
         """ Untested. Probably not working yet """
-        x = np.array(self.qwtArrayDoubleToList(curveItem.data().xData()))
-        y = np.array(self.qwtArrayDoubleToList(curveItem.data().yData()))
+        x = np.array(qwtArrayDoubleToList(curveItem.data().xData()))
+        y = np.array(qwtArrayDoubleToList(curveItem.data().yData()))
 
         # fit using a cosin
-        amplitude, frequency, phase, y0 , yFit= transdat.fitcos_squared(self.ndarrayToList(x),self.ndarrayToList(y), fitY0 = True)
+        amplitude, frequency, phase, y0 , yFit= transdat.fitcos_squared(ndarrayToList(x),ndarrayToList(y), fitY0 = True)
     
-        self.plot.add_item(make.curve(self.ndarrayToList(x),self.ndarrayToList(yFit),color='r'))
-        print amplitude, frequency, phase, y0
+        self.plot.add_item(make.curve(ndarrayToList(x),ndarrayToList(yFit),color='r'))
+        self.plot.replot()
+        print(amplitude, frequency, phase, y0)
 
 
-    def qwtArrayDoubleToList(self, array):
-        x = []
-        for i in range(0,array.size()):
-            x.append(array[i])
-        return x    
-    
-    def ndarrayToList(self, array):
-        x = []
-        for i in range(0,np.size(array)):
-            x.append(array[i])
-        return x
+
         
 class previewTransportDataWindow(QWidget):
     '''
@@ -213,11 +250,11 @@ class previewTransportDataWindow(QWidget):
         self.plotButton = QPushButton(u"Plot")
         self.plotButton.setMaximumWidth(100)
         
-        #connect SIGNALs
+        # Connect SIGNALs
         self.connect(button1, SIGNAL('clicked()'), self.selectFile)
         self.connect(self.plotButton, SIGNAL('clicked()'), self.plot)
         
-        #add to Layout
+        # Build Layout
         layout.addWidget(self.fileTextWindow,0,0,1,3)
         layout.addWidget(button1,0,3)
         layout.addWidget(self.groupBox,1,0)
@@ -226,12 +263,16 @@ class previewTransportDataWindow(QWidget):
         layout.addWidget(self.plotButton,1,3)
         layout.columnStretch(4)
         
-        #initialize store for TDMSfiles
+        # Initialize store for TDMSfiles
         self.tdmsFile = None
         self.groupList = []
         self.ChannelList = []
-        
-        #initialize plot widget
+    
+        # Initialize memory for last selected x and y channel
+        self.selectedXChannel = 0
+        self.selectedYChannel = 0
+                
+        # Initialize plot widget
         self.widget = plotWidget(self)
         self.layout().addWidget(self.widget,2,0,1,4)
         self.widget.buttonCommit.setEnabled(False)
@@ -248,24 +289,37 @@ class previewTransportDataWindow(QWidget):
                 self.groupBox.addItem(group)
                 self.groupList.append(group)
 
-        #connect signal to activated
+        # Connect signal to activated
         self.groupBox.activated['QString'].connect(self.fillChannelBoxes)
 
     def fillChannelBoxes(self,index):
         self.channelList = self.tdmsFile.group_channels(self.groupList[self.groupBox.currentIndex()])
-        #empty channelBox        
+        
+        # Empty channelBox        
         self.xChannelBox.clear()
         self.yChannelBox.clear()
-        #fill with new channels                
+        
+        # Fill with new channels                
         for channel in self.channelList:
             self.xChannelBox.addItem(re.search(r"'/'(.+)'",channel.path).group(1))
             self.yChannelBox.addItem(re.search(r"'/'(.+)'",channel.path).group(1))
+
+        # Select the last selected index automatically is possible
+        if self.selectedXChannel > 0 and self.selectedXChannel < self.xChannelBox.count():
+            self.xChannelBox.setCurrentIndex(self.selectedXChannel)
+        if self.selectedYChannel > 0 and self.selectedYChannel < self.yChannelBox.count():
+            self.yChannelBox.setCurrentIndex(self.selectedYChannel)
+
         self.plotButton.setEnabled(True)
         
     def plot(self):
         self.widget.buttonCommit.setEnabled(True)
         x = self.channelList[self.xChannelBox.currentIndex()].data
         y = self.channelList[self.yChannelBox.currentIndex()].data
+        
+        self.selectedXChannel = self.xChannelBox.currentIndex()
+        self.selectedYChannel = self.yChannelBox.currentIndex()
+        
         self.widget.newData(x,y)
         
 #def previewTransportData():

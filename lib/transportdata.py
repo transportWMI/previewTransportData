@@ -361,7 +361,10 @@ def preprocessTransportData(field, angle, U, I = None, fields = None, n_angle_po
         
     return data 
     
-def fitcos(x, y, fitY0 = False, guess = None, debug=False):
+def fitcos(x, y, fitY0 = False, guess = None):
+    """
+    Fit a cosin to the date in x and y.
+    """
     def cos(x, amplitude, frequency, phase):
         return amplitude * np.cos(frequency * x + phase)   
     def cos_y0(x, amplitude, frequency, phase, y0):
@@ -378,7 +381,7 @@ def fitcos(x, y, fitY0 = False, guess = None, debug=False):
         if frequency0 == np.Inf:
             frequency0 = 0.001
         # maximum to find guess for amplitude
-        amplitude0 = max(y)
+        amplitude0 = np.abs(max(y)-min(y))/2
         y00 = (max(y)-min(y))/2+min(y)
         phase0 = 0.
     else:
@@ -387,10 +390,10 @@ def fitcos(x, y, fitY0 = False, guess = None, debug=False):
         phase0 = guess[2]
         if fitY0:
             y00 = guess[3]
-
+    l.debug("Fit cosin. Guessing: Amplitude %.3e, Frequency %.3e, Phase %.3e, Offset y0 %.3e"%(amplitude0, frequency0, phase0, y00))
+    
     if fitY0:
         guess = [amplitude0, abs(frequency0), phase0, y00]
-        if debug: print(guess)
         (amplitude, frequency, phase, y0), pcov = optimize.curve_fit(
             cos_y0,
             x, y,
@@ -399,12 +402,11 @@ def fitcos(x, y, fitY0 = False, guess = None, debug=False):
         return (amplitude, frequency, phase, y0, yFit)
     else:
         guess = [amplitude0, abs(frequency0), phase0]
-        if debug: print(guess)
         (amplitude, frequency, phase), pcov = optimize.curve_fit(
             cos,
             x, y,
             guess)
-        yFit = cos(x, amplitude, frequency, +phase)
+        yFit = cos(x, amplitude, frequency, +phase)        
         return (amplitude, frequency, phase, 0, yFit)
         
         
@@ -426,7 +428,7 @@ def fitcos_squared(x, y, fitY0 = False, guess = None, debug=False):
         if frequency0 == np.Inf:
             frequency0 = 0.001
         # maximum to find guess for amplitude
-        amplitude0 = max(y)
+        amplitude0 = np.abs(max(y)-min(y))/2
         y00 = (max(y)-min(y))/2+min(y)
         phase0 = 0.
     else:
@@ -435,10 +437,10 @@ def fitcos_squared(x, y, fitY0 = False, guess = None, debug=False):
         phase0 = guess[2]
         if fitY0:
             y00 = guess[3]
+    l.debug("Fit cosin squared. Guessing: Amplitude %.3e, Frequency %.3e, Phase %.3e, Offset y0 %.3e"%(amplitude0, frequency0, phase0, y00))
 
     if fitY0:
         guess = [amplitude0, abs(frequency0), phase0, y00]
-        if debug: print(guess)
         (amplitude, frequency, phase, y0), pcov = optimize.curve_fit(
             cossq_y0,
             x, y,
@@ -447,9 +449,8 @@ def fitcos_squared(x, y, fitY0 = False, guess = None, debug=False):
         return (amplitude, frequency, phase, y0, yFit)
     else:
         guess = [amplitude0, abs(frequency0), phase0]
-        if debug: print(guess)
         (amplitude, frequency, phase), pcov = optimize.curve_fit(
-            cos,
+            cossq,
             x, y,
             guess)
         yFit = cossq(x, amplitude, frequency, +phase)
