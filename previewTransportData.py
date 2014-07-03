@@ -55,13 +55,21 @@ class plotWidget(QWidget):
         self.checkBoxFitCos = QCheckBox("Fit Cos")
         self.checkBoxNorm = QCheckBox("Normalize")
         
+        self.deltaMethod = QComboBox()
+        
         self.commitButton = QPushButton(u"Commit Changes")
         
         symmOffsetLabel = QLabel("Symmetry Step")
+        
+        # set parameters
         self.symmOffsetField = QLineEdit() 
         self.symmOffsetField.setMaximumWidth(150)
         self.symmOffsetField.setValidator(QIntValidator())
         
+        self.deltaMethod.addItem("None")
+        self.deltaMethod.addItem("Subtract")
+        self.deltaMethod.addItem("Add")
+        self.deltaMethod.addItem("Mean")
         
         # connect SIGNALs
         self.connect(self.commitButton, SIGNAL('clicked()'), self.commitChanges)
@@ -87,6 +95,7 @@ class plotWidget(QWidget):
         #  second row
         hlayout2 = QHBoxLayout()
         hlayout2.addStretch(5)
+        hlayout2.addWidget(self.deltaMethod)
         hlayout2.addWidget(symmOffsetLabel)
         hlayout2.addWidget(self.symmOffsetField)
         #  vertical layout
