@@ -4,7 +4,7 @@ Created on Mon Jun 23 10:27:50 2014
 
 @author: hannes.maierflaig
 """
-from guidata.qt.QtGui import QLabel, QIntValidator, QLineEdit, QCheckBox, QVBoxLayout, QMainWindow, QWidget, QComboBox, QGridLayout, QHBoxLayout, QFileDialog, QPushButton, QTextEdit
+from guidata.qt.QtGui import QLabel, QDoubleValidator, QIntValidator, QLineEdit, QCheckBox, QVBoxLayout, QMainWindow, QWidget, QComboBox, QGridLayout, QHBoxLayout, QFileDialog, QPushButton, QTextEdit
 from guidata.qt.QtCore import SIGNAL
 
 from guiqwt.plot import CurveDialog
@@ -19,12 +19,18 @@ import lib.transportdata as transdat
 l.basicConfig(format='%(levelname)s:%(message)s', level=l.DEBUG)
 
 def qwtArrayDoubleToList(array):
+    """
+    Transforms a QWT array to a list
+    """
     x = []
     for i in range(0,array.size()):
         x.append(array[i])
     return x    
 
 def ndarrayToList(array):
+    """
+    Transforms a numpy array to a list
+    """
     x = []
     for i in range(0,np.size(array)):
         x.append(array[i])
@@ -32,17 +38,19 @@ def ndarrayToList(array):
     
 class plotWidget(QWidget):
     """
-    Will be done soon
+    Creates a widget to display and process data.
+    Offers several ways to look at the data to see if the
+    measurement's results are probable.
+    
+    Parameters
+    --------
     """
     def __init__(self, parent):
+        """
+        Initializes the widget with several widgets to set plotting preferences and the window to plot the data
+        """
         QWidget.__init__(self, parent)
         self.setMinimumSize(500, 500)
-
-        #flag initialization
-        self.average = False
-        self.symmetrize = False
-        self.antiSymmetrize = False
-        self.norm = False
 
         #initialize data storage
         self.symmStep = None
@@ -67,60 +75,87 @@ class plotWidget(QWidget):
         self.comboBoxDeltaMethod.addItem(u"Raw data [2n]")
         self.comboBoxDeltaMethod.addItem(u"Diff ([2n-1]-[2n])/2")        
         self.comboBoxDeltaMethod.addItem(u"Sum ([2n-1]+[2n])/2")  
-        self.checkBoxSymmetrize = QCheckBox("Symmetrize")
-        self.checkBoxAntiSymmetrize = QCheckBox("Antisymmetrize")
-        self.checkBoxAverage = QCheckBox("Average Up-Down-Sweep")
-        self.checkBoxNorm = QCheckBox("Normalize")
+        
+        self.comboBoxSymmetrize = QComboBox()
+        self.comboBoxSymmetrize.addItem(u"No symmetrization")
+        self.comboBoxSymmetrize.addItem(u"Symmetrization")
+        self.comboBoxSymmetrize.addItem(u"Antisymmetrization")
+        self.checkBoxAdmrData = QCheckBox(u"ADMR data")
+        self.checkBoxAntiSymmetrize = QCheckBox(u"Antisymmetrize")
+        
+        self.checkBoxAverage = QCheckBox(u"Average Up-Down-Sweep")
+        
+        self.comboBoxNorm = QComboBox()
+        self.comboBoxNorm.addItem(u"No normalization")
+        self.comboBoxNorm.addItem(u"Normalize to min(data)")
+        self.comboBoxNorm.addItem(u"Normalize to max(data)")
+           
+        self.comboBoxOffset = QComboBox()
+        self.comboBoxOffset.addItem(u"No offset to subtract")
+        self.comboBoxOffset.addItem(u"Subtract min(data)")
+        self.comboBoxOffset.addItem(u"Subtract max(data)")
+        self.comboBoxOffset.addItem(u"Subtract mean(data)")
+        self.comboBoxOffset.addItem(u"Subtract custom value")
+        self.lineEditOffset = QLineEdit()
+        self.lineEditOffset.setMaximumWidth(100)
+        self.lineEditOffset.setValidator(QDoubleValidator())
         
         self.buttonCommit = QPushButton(u"Commit Changes")
         
-        symmOffsetLabel = QLabel("Symmetry Step")
+        symmOffsetLabel = QLabel(u"Symmetry Step(ADMR)/Center for symmetrization")
         self.symmOffsetField = QLineEdit() 
         self.symmOffsetField.setMaximumWidth(150)
         self.symmOffsetField.setValidator(QIntValidator())
         
         # Fitting
-        self.buttonFit = QPushButton(u"fitButton")
+        self.buttonFit = QPushButton(u"Fit")
         self.comboBoxFit = QComboBox()
         self.comboBoxFit.setMinimumWidth(200)
         self.comboBoxFit.addItem(u"cos()")
         self.comboBoxFit.addItem(u"cos²()")
-        self.connect(self.buttonFit, SIGNAL('clicked()'), self.dispatchFit)
-
+        
+        self.buttonResidual = QPushButton(u"Calculate Residual")
         
         # Connect SIGNALs
+        self.connect(self.buttonFit, SIGNAL('clicked()'), self.dispatchFit)
+        self.connect(self.buttonResidual, SIGNAL('clicked()'), self.calculateResidual)
         self.connect(self.buttonCommit, SIGNAL('clicked()'), self.commitChanges)
-        # should be removed if the button is used sooner or later
-        self.checkBoxAntiSymmetrize.stateChanged.connect(self.updateCheckboxes)        
-        self.checkBoxSymmetrize.stateChanged.connect(self.updateCheckboxes)        
-        self.checkBoxNorm.stateChanged.connect(self.updateCheckboxes)        
-        self.checkBoxAverage.stateChanged.connect(self.updateCheckboxes)        
                 
         # Make layout        
         #  first row
         hlayout = QHBoxLayout()
         hlayout.addWidget(self.comboBoxDeltaMethod)
-        hlayout.addWidget(self.checkBoxNorm)
         hlayout.addWidget(self.checkBoxAverage)
-        hlayout.addWidget(self.checkBoxSymmetrize)
-        hlayout.addWidget(self.checkBoxAntiSymmetrize)
-        hlayout.addWidget(self.buttonCommit)
+        hlayout.addWidget(self.comboBoxOffset)
+        hlayout.addWidget(self.lineEditOffset)
+        hlayout.addWidget(self.comboBoxNorm)
         #  second row
         hlayout2 = QHBoxLayout()
         hlayout2.addStretch(2)
+        hlayout2.addWidget(self.comboBoxSymmetrize)
+        hlayout2.addWidget(self.checkBoxAdmrData)
         hlayout2.addWidget(symmOffsetLabel)
         hlayout2.addWidget(self.symmOffsetField)
-        hlayout2.addWidget(self.comboBoxFit)
-        hlayout2.addWidget(self.buttonFit)
+        hlayout2.addWidget(self.buttonCommit)
+        # third row
+        hlayout3 = QHBoxLayout()
+        hlayout3.addStretch(1)
+        hlayout3.addWidget(self.comboBoxFit)
+        hlayout3.addWidget(self.buttonFit)
+        hlayout3.addWidget(self.buttonResidual)
         #  vertical layout
         vlayout = QVBoxLayout()
         vlayout.addLayout(hlayout)
         vlayout.addLayout(hlayout2)
+        vlayout.addLayout(hlayout3)
         vlayout.addWidget(self.curveDialog)
         self.setLayout(vlayout)
         
     # Here happens the stuff you want to apply to the data @ commit and before plotting
     def processData(self):
+        """
+        Processes the data as indicated by the markers of the GUI
+        """
         if self.comboBoxDeltaMethod.currentIndex() == 0:
             # plain raw data
             x = self.x
@@ -142,38 +177,80 @@ class plotWidget(QWidget):
             x = transdat.separateAlternatingSignal(self.x)[0]
             y = transdat.separateAlternatingSignal(self.y)[0] +  transdat.separateAlternatingSignal(self.y)[1]
             
-        if self.average:
+        if self.checkBoxAverage.isChecked():
             x = transdat.averageUpDownSweep(x)
             y = transdat.averageUpDownSweep(y)
-        if self.norm:
-            y = y-min(y)
-        if self.symmetrize:
-            y = transdat.symmetrizeSignal(y)
-        if self.antiSymmetrize:
-            y = transdat.antiSymmetrizeSignal(y)
+        if 0 == self.comboBoxNorm.currentIndex():
+            pass
+        elif 1 == self.comboBoxNorm.currentIndex():
+            y = y/np.min(y)
+        elif 2 == self.comboBoxNorm.currentIndex():
+            y = y/np.max(y)
+        if 0 == self.comboBoxOffset.currentIndex():
+            pass
+        elif 1 == self.comboBoxOffset.currentIndex():
+            dummy = np.min(y)
+            for i in range(len(y)):
+                y[i] = y[i] - dummy
+        elif 2 == self.comboBoxOffset.currentIndex():
+            dummy = np.mean(y)
+            for i in range(len(y)):
+                y[i] = y[i] - dummy
+        elif 3 == self.comboBoxOffset.currentIndex():
+            dummy = np.mean(y)
+            for i in range(len(y)):
+                y[i] = y[i] - dummy
+        elif 4 == self.comboBoxOffset.currentIndex():
+            dummy = (self.lineEditOffset.text().toDouble())[0]
+            for i in range(len(y)):
+                y[i] = y[i] - dummy
+        if 0 == self.comboBoxSymmetrize.currentIndex():
+            pass
+        elif 1 == self.comboBoxSymmetrize.currentIndex():
+            if self.checkBoxAdmrData.isChecked():
+                pass #symmetrize admr data around symmetry step
+            else:
+                pass #symmetrize r(h) data around center
+        elif 2 == self.comboBoxSymmetrize.currentIndex():
+            if self.checkBoxAdmrData.isChecked():
+                pass #antisymmetrize admr data around symmetry step
+            else:
+                pass #antisymmetrize r(h) data around center
         return (x,y)
     
     def commitChanges(self):
-        self.updateCheckboxes(0);
+        """
+        Processes the data and appends them to the plot window
+        """
         (x,y) = self.processData()
         self.plot.add_item(make.curve(x,y,color='b',marker='Ellipse', markerfacecolor='b'))
         self.storageArray.append((x,y))
         self.plot.do_autoscale()  
         
     def newData(self,x,y):
+        """
+        Adds new data to the plot after recalculating everything as specified by the GUI
+        
+        Parameters
+        --------
+        x: np.array contains the data used for the x-axis
+        y: np.array contains the data used for the y-axis        
+        """
         self.x = x
         self.y = y
         self.commitChanges()
-    
-    def updateCheckboxes(self,i):
+
+    def calculateResidual(self):        
         """
-        FIXME: What do you need this for? 
-        FIXME: Document what i's supposed to do (nothing obviously)
+        Calculate the residual of two selected curves and plot
         """
-        self.average = self.checkBoxAverage.checkState()
-        self.symmetrize = self.checkBoxSymmetrize.checkState()
-        self.antiSymmetrize = self.checkBoxAntiSymmetrize.checkState()
-        self.norm = self.checkBoxNorm.checkState()
+        x =  np.array(qwtArrayDoubleToList(self.plot.get_selected_items()[0].data().xData()))
+        y1 = np.array(qwtArrayDoubleToList(self.plot.get_selected_items()[0].data().yData()))
+        y2 = np.array(qwtArrayDoubleToList(self.plot.get_selected_items()[1].data().yData()))
+        
+        self.plot.add_item(make.curve(ndarrayToList(x),ndarrayToList(y2-y1),color='r'))
+        self.plot.replot()
+       
 
     # %% Fitting routines    
     def dispatchFit(self):
@@ -226,10 +303,18 @@ class plotWidget(QWidget):
 
         
 class previewTransportDataWindow(QWidget):
-    '''
-    Will be done soon!
-    '''
+    """ 
+    Create a widget to open a .tdms file and select a group and a channel to plot
+    Data is stored in the seperate plot window that is appended to the bottom 
+    (plotWidget(self)).
+    
+    Parameters    
+    -----------
+    """
     def __init__(self):
+        """
+        Initializes the layout and appends a plotWidget()
+        """
         QMainWindow.__init__(self)
         self.setWindowTitle("previewTransportData")
 
@@ -279,8 +364,11 @@ class previewTransportDataWindow(QWidget):
         self.plotButton.setEnabled(False)
         
     def selectFile(self):
+        """
+        Reads the .tdms file written in self.fileTextWindow and populates self.groupBox with the groups of the .tdms file.
+        """
         self.fileTextWindow.setText(QFileDialog.getOpenFileName(self,u"Open File","",u"TDMS (*.tdms);;All files (*.*)"))
-        #read TdmsFile an fill groupBox        
+        #read TdmsFile and fill groupBox        
         self.tdmsFile = nptdms.TdmsFile(self.fileTextWindow.toPlainText())
         self.groupBox.clear()
         self.groupList = []
@@ -293,6 +381,10 @@ class previewTransportDataWindow(QWidget):
         self.groupBox.activated['QString'].connect(self.fillChannelBoxes)
 
     def fillChannelBoxes(self,index):
+        """
+        Populates self.xChannelBox and self.yChannelBox with the channels of the selected group
+        If possible, uses the channels selected the previous time.
+        """
         self.channelList = self.tdmsFile.group_channels(self.groupList[self.groupBox.currentIndex()])
         
         # Empty channelBox        
@@ -313,6 +405,9 @@ class previewTransportDataWindow(QWidget):
         self.plotButton.setEnabled(True)
         
     def plot(self):
+        """
+        Hands new data to the plotWidget() to be displayed (or to be appended to the display)
+        """
         self.widget.buttonCommit.setEnabled(True)
         x = self.channelList[self.xChannelBox.currentIndex()].data
         y = self.channelList[self.yChannelBox.currentIndex()].data
@@ -322,19 +417,19 @@ class previewTransportDataWindow(QWidget):
         
         self.widget.newData(x,y)
         
-#def previewTransportData():
-#    """
-#    Preview transport measurement data
-#    """
-#    # -- Create QApplication
-import guidata
-_app = guidata.qapplication()
-# --
-win = previewTransportDataWindow()
+def previewTransportData():
+    """
+    Preview transport measurement data
+    """
+    # -- Create QApplication
+    import guidata
+    _app = guidata.qapplication()
+    # --
+    win = previewTransportDataWindow()
 
-win.show()
-#    _app.exec_()
-    
+    win.show()
+    _app.exec_()
+        
      
     # onchange symmetrize(difference, sum, raw); onchange normalize(to 
     # max/min/mean/custom value); onchange average up_down_sweep:
