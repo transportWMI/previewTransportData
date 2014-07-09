@@ -8,7 +8,10 @@ Shared functions for processing transport measurement data.
 """
 
 import numpy as np
-    
+import logging as l
+import scipy.optimize as optimize
+import scipy.fftpack as fftpack
+
 def symmetrizeSignalZero(y, idx = None):
     """
     Dischard antisymmetric (around center index or around idx) part by 
@@ -89,9 +92,11 @@ def antiSymmetrizeSignal(y, symmetryStep):
     """
     y = np.array(y)
         
-    s = np.zeros(len(y)-symmetryStep)
+    s = np.zeros(len(y)/2)
     for idx in range(0, len(s)):
-        s[idx] = (y[idx] - y[idx+symmetryStep])/2.-(y[0] - y[0+symmetryStep])/2.
+        # (positive field - negative field)/2
+        s[idx] = (y[symmetryStep+idx] - y[symmetryStep-idx])/2
+        #s[idx] = (y[idx] - y[idx+symmetryStep])/2.-(y[0] - y[0+symmetryStep])/2.
     return s
 
 
@@ -146,20 +151,14 @@ def symmetrizeSignalUpDown(y, symmetryStep):
     yU = y[0:len(y)/2] # up sweep (for the sake of the argument)                    
     yD = y[len(y)/2:][::-1] # down sweep w/ same axis
     
-    sL = np.zeros(len(yU)-symmetryStep)
-    for idx in range(0, len(sL)):
-        sL[idx] = (yU[idx] + yD[idx+symmetryStep])/2.-(yU[0] + yD[0+symmetryStep])/2.
+    
+    sL = np.zeros(2*symmetryStep)
+    for idx in range(0, symmetryStep):
+        sL[idx] = (yU[idx] + yD[idx+symmetryStep])/2
+    for idx in range(symmetryStep,2*symmetryStep):
+        sL[idx] = (yU[idx] + yU[idx-symmetryStep])/2.
     return sL
     
-    
-    sU = np.zeros(len(yU)-symmetryStep)
-    for idx in range(0, len(sU)):
-        sU[idx] = (yD[idx][::-1] + yU[idx+symmetryStep][::-1])/2.-(yD[::-1][0] + yU[::-1][0+symmetryStep])/2.
-    return sU
-    
-    y_sym = np.hstack(sL,sU[::-1])
-    
-    return y_sym
     
 
 def antiSymmetrizeSignalUpDown(y, symmetryStep):
@@ -186,14 +185,12 @@ def antiSymmetrizeSignalUpDown(y, symmetryStep):
     yU = y[0:len(y)/2] # up sweep (for the sake of the argument)                    
     yD = y[len(y)/2:][::-1] # down sweep w/ same axis
     
-    s = np.zeros(len(yU)-symmetryStep)
-    for idx in range(0, len(s)):
-        s[idx] = (yU[idx] - yD[idx+symmetryStep])/2.-(yU[0] + yD[0+symmetryStep])/2.
-    return s
-    
-    y_sym = s
-    
-    return y_sym
+    sL = np.zeros(2*symmetryStep)
+    for idx in range(0, symmetryStep):
+        sL[idx] = (yU[idx] - yD[idx+symmetryStep])/2
+    for idx in range(symmetryStep,2*symmetryStep):
+        sL[idx] = (yU[idx] - yU[idx-symmetryStep])/2.
+    return sL
     
 def separateAlternatingSignal(x):
     """
@@ -203,6 +200,10 @@ def separateAlternatingSignal(x):
     ----------
     separated_signal : list of two arrays (x[2n], x[2n-1])
     """
+    if np.size(x)%2:
+        x = x[:-1]
+        l.warn("""Data does not have an even number of elements. Dropping last datapoint. 
+        Maybe the data has not been recorded using a delta method?""")
     return np.array(x[0::2]), np.array(x[1::2])
 
     
@@ -353,3 +354,98 @@ def preprocessTransportData(field, angle, U, I = None, fields = None, n_angle_po
                 })
         
     return data 
+    
+def fitcos(x, y, fitY0 = False, guess = None):
+    """
+    Fit a cosin to the date in x and y.
+    """
+    def cos(x, amplitude, frequency, phase):
+        return amplitude * np.cos(frequency * x + phase)   
+    def cos_y0(x, amplitude, frequency, phase, y0):
+        return amplitude * np.cos(frequency * x + phase) + y0    
+
+    x = np.array(x)
+    y = np.array(y)    
+    if not guess:       
+        # fourier transform to find guess value for frequency
+        yhat = fftpack.rfft(y)
+        idx = (yhat**2).argmax()
+        freqs = fftpack.rfftfreq(np.size(x), d = (x[0]-x[1])/(2*np.pi))
+        frequency0 = freqs[idx]
+        if frequency0 == np.Inf:
+            frequency0 = 0.001
+        # maximum to find guess for amplitude
+        amplitude0 = np.abs(max(y)-min(y))/2
+        y00 = (max(y)-min(y))/2+min(y)
+        phase0 = 0.
+    else:
+        amplitude0 = guess[0]
+        frequency0 = guess[1]
+        phase0 = guess[2]
+        if fitY0:
+            y00 = guess[3]
+    l.debug("Fit cosin. Guessing: Amplitude %.3e, Frequency %.3e, Phase %.3e, Offset y0 %.3e"%(amplitude0, frequency0, phase0, y00))
+    
+    if fitY0:
+        guess = [amplitude0, abs(frequency0), phase0, y00]
+        (amplitude, frequency, phase, y0), pcov = optimize.curve_fit(
+            cos_y0,
+            x, y,
+            guess)
+        yFit = cos_y0(x, amplitude, frequency, +phase, y0)
+        return (amplitude, frequency, phase, y0, yFit)
+    else:
+        guess = [amplitude0, abs(frequency0), phase0]
+        (amplitude, frequency, phase), pcov = optimize.curve_fit(
+            cos,
+            x, y,
+            guess)
+        yFit = cos(x, amplitude, frequency, +phase)        
+        return (amplitude, frequency, phase, 0, yFit)
+        
+        
+def fitcos_squared(x, y, fitY0 = False, guess = None, debug=False):
+    """ untested, probably not working correctly"""
+    def cossq(x, amplitude, frequency, phase):
+        return amplitude * np.cos(frequency * x + phase)**2   
+    def cossq_y0(x, amplitude, frequency, phase, y0):
+        return amplitude * np.cos(frequency * x + phase)**2 + y0    
+
+    x = np.array(x)
+    y = np.array(y)    
+    if not guess:       
+        # fourier transform to find guess value for frequency
+        yhat = fftpack.rfft(y)
+        idx = (yhat**2).argmax()
+        freqs = fftpack.rfftfreq(np.size(x), d = (x[0]-x[1])/(2*np.pi))
+        frequency0 = freqs[idx]
+        if frequency0 == np.Inf:
+            frequency0 = 0.001
+        # maximum to find guess for amplitude
+        amplitude0 = np.abs(max(y)-min(y))/2
+        y00 = (max(y)-min(y))/2+min(y)
+        phase0 = 0.
+    else:
+        amplitude0 = guess[0]
+        frequency0 = guess[1]
+        phase0 = guess[2]
+        if fitY0:
+            y00 = guess[3]
+    l.debug("Fit cosin squared. Guessing: Amplitude %.3e, Frequency %.3e, Phase %.3e, Offset y0 %.3e"%(amplitude0, frequency0, phase0, y00))
+
+    if fitY0:
+        guess = [amplitude0, abs(frequency0), phase0, y00]
+        (amplitude, frequency, phase, y0), pcov = optimize.curve_fit(
+            cossq_y0,
+            x, y,
+            guess)
+        yFit = cossq_y0(x, amplitude, frequency, +phase, y0)
+        return (amplitude, frequency, phase, y0, yFit)
+    else:
+        guess = [amplitude0, abs(frequency0), phase0]
+        (amplitude, frequency, phase), pcov = optimize.curve_fit(
+            cossq,
+            x, y,
+            guess)
+        yFit = cossq(x, amplitude, frequency, +phase)
+        return (amplitude, frequency, phase, 0, yFit)
