@@ -36,6 +36,146 @@ def ndarrayToList(array):
         x.append(array[i])
     return x
     
+class dataObject():
+    """
+    Creates a data object containing data for x and y channel
+    optional flags can be passed to the initializer for recalculation
+    
+    Parameters
+    -------
+    x : np.array
+        x-channel data
+    y : np.array
+        y-channel data  
+    
+    Class Members
+    ----------
+    self.x : np.array
+        original x-channel data
+    self.y : np.array
+        original y-channel data
+    self.xCalc : np.array
+        recalculated x-channel data (zeros until first process data was run)
+    self.yCalc : np.array
+        recalculated y-channel data (zeros until first process data was run)
+     
+    """
+    def __init__(self,x,y):
+        self.x = x
+        self.y = y
+        self.xCalc = np.zeros(len(x))
+        self.yCalc = np.zeros(len(y))
+        
+    def processData(self,switchDeltaMethod = 0, flagAverage = False,
+                 switchNormalize = 0, switchOffset = 0, valueOffset = 0,
+                 switchSymmetrize = 0, flagADMR = False, valueSymmetrize = 0):
+        """
+        Processes the data of the dataObject(y) according to the flags and switches given
+
+        Parameters
+        ----------      
+        switchDeltaMethod : int(0-4)
+            0   -> no delta method [n] (default)
+            1   -> uneven indexed raw data [2n-1]
+            2   -> even indexed raw data [2n]
+            3   -> difference ([2n-1]-[2n])/2
+            4   -> sum ([2n-1]+[2n])/2
+        flagAverage : boolean
+            False   -> no averaging (default)
+            True   -> average up and down sweep
+        switchNormalize : int(0-2)
+            0   -> no normalization (default)
+            1   -> normalize y to min(y)
+            2   -> normalize y to max(y)
+        switchOffset : int(0-4)
+            0   -> no offset correction (default)
+            1   -> subtracts min(y)
+            2   -> subtracts max(y)
+            3   -> subtracts mean(y)
+            4   -> subtracts value defined in valueOffset
+        valueOffset : double 
+            custom value to subtract from the data (if switchOffset = 4) (default = 0)
+        switchSymmetrize : int(0-2)
+            0   -> no symmetrization (default)
+            1   -> symmetrization
+            2   -> antisymmetrization
+        flagADMR : boolean
+            False   -> R(H) data (default)
+            True    -> ADMR data
+        valueSymmetrize : int
+            value of the symmetry step (ADMR) or center for symmetrization (R(H)) (default = 0)
+        """
+        x = self.x
+        y = self.y
+        if switchDeltaMethod == 0:
+            # plain raw data
+            pass
+        elif switchDeltaMethod == 1:
+            # odd raw data values
+            x = transdat.separateAlternatingSignal(self.x)[0]
+            y = transdat.separateAlternatingSignal(self.y)[0]
+        elif switchDeltaMethod == 2:
+            # even raw data values
+            x = transdat.separateAlternatingSignal(self.x)[1]
+            y = transdat.separateAlternatingSignal(self.y)[1]
+        elif switchDeltaMethod == 3:
+            # difference of odd - even values
+            x = transdat.separateAlternatingSignal(self.x)[0]
+            y = transdat.separateAlternatingSignal(self.y)[0] -  transdat.separateAlternatingSignal(self.y)[1]
+        elif switchDeltaMethod == 4:
+            # difference of odd - even values
+            x = transdat.separateAlternatingSignal(self.x)[0]
+            y = transdat.separateAlternatingSignal(self.y)[0] +  transdat.separateAlternatingSignal(self.y)[1]
+            
+        if flagAverage:
+            # average up and down sweep
+            x = transdat.averageUpDownSweep(x)
+            y = transdat.averageUpDownSweep(y)
+        if 0 == switchNormalize:
+            pass
+        elif 1 == switchNormalize:
+            # normalize by min(y)
+            y = y/np.min(y)
+        elif 2 == switchNormalize:
+            # normalize by max(y)
+            y = y/np.max(y)
+        if 0 == switchOffset:
+            pass
+        elif 1 == switchOffset:
+            # subtract min(y)
+            dummy = np.min(y)
+            for i in range(len(y)):
+                y[i] = y[i] - dummy
+        elif 2 == switchOffset:
+            # subtract max(y)
+            dummy = np.max(y)
+            for i in range(len(y)):
+                y[i] = y[i] - dummy
+        elif 3 == switchOffset:
+            # subtract mean(y)
+            dummy = np.mean(y)
+            for i in range(len(y)):
+                y[i] = y[i] - dummy
+        elif 4 == switchOffset:
+            # subtract valueOffset
+            for i in range(len(y)):
+                y[i] = y[i] - valueOffset
+        if 0 == switchSymmetrize:
+            pass
+        elif 1 == switchSymmetrize:
+            if flagADMR:
+                pass #symmetrize admr data around symmetry step
+            else:
+                pass #symmetrize r(h) data around center
+        elif 2 == switchSymmetrize:
+            if flagADMR:
+                pass #antisymmetrize admr data around symmetry step
+            else:
+                pass #antisymmetrize r(h) data around center
+        
+        self.xCalc = x
+        self.yCalc = y
+    
 class plotWidget(QWidget):
     """
     Creates a widget to display and process data.
@@ -56,7 +196,7 @@ class plotWidget(QWidget):
         self.symmStep = None
         self.x = None
         self.y = None
-        self.storageArray = []
+        self.listOfDataObjects = []
         
         #initialize plot widget
         self.curveDialog = CurveDialog(edit=False,toolbar=True)
@@ -103,9 +243,9 @@ class plotWidget(QWidget):
         self.buttonCommit = QPushButton(u"Commit Changes")
         
         symmOffsetLabel = QLabel(u"Symmetry Step(ADMR)/Center for symmetrization")
-        self.symmOffsetField = QLineEdit() 
-        self.symmOffsetField.setMaximumWidth(150)
-        self.symmOffsetField.setValidator(QIntValidator())
+        self.lineEditSymmStep = QLineEdit() 
+        self.lineEditSymmStep.setMaximumWidth(150)
+        self.lineEditSymmStep.setValidator(QIntValidator())
         
         # Fitting
         self.buttonFit = QPushButton(u"Fit")
@@ -135,7 +275,7 @@ class plotWidget(QWidget):
         hlayout2.addWidget(self.comboBoxSymmetrize)
         hlayout2.addWidget(self.checkBoxAdmrData)
         hlayout2.addWidget(symmOffsetLabel)
-        hlayout2.addWidget(self.symmOffsetField)
+        hlayout2.addWidget(self.lineEditSymmStep)
         hlayout2.addWidget(self.buttonCommit)
         # third row
         hlayout3 = QHBoxLayout()
@@ -152,79 +292,23 @@ class plotWidget(QWidget):
         self.setLayout(vlayout)
         
     # Here happens the stuff you want to apply to the data @ commit and before plotting
-    def processData(self):
-        """
-        Processes the data as indicated by the markers of the GUI
-        """
-        if self.comboBoxDeltaMethod.currentIndex() == 0:
-            # plain raw data
-            x = self.x
-            y = self.y
-        elif self.comboBoxDeltaMethod.currentIndex() == 1:
-            # odd raw data values
-            x = transdat.separateAlternatingSignal(self.x)[0]
-            y = transdat.separateAlternatingSignal(self.y)[0]
-        elif self.comboBoxDeltaMethod.currentIndex() == 2:
-            # even raw data values
-            x = transdat.separateAlternatingSignal(self.x)[1]
-            y = transdat.separateAlternatingSignal(self.y)[1]
-        elif self.comboBoxDeltaMethod.currentIndex() == 3:
-            # difference of odd - even values
-            x = transdat.separateAlternatingSignal(self.x)[0]
-            y = transdat.separateAlternatingSignal(self.y)[0] -  transdat.separateAlternatingSignal(self.y)[1]
-        elif self.comboBoxDeltaMethod.currentIndex() == 4:
-            # difference of odd - even values
-            x = transdat.separateAlternatingSignal(self.x)[0]
-            y = transdat.separateAlternatingSignal(self.y)[0] +  transdat.separateAlternatingSignal(self.y)[1]
-            
-        if self.checkBoxAverage.isChecked():
-            x = transdat.averageUpDownSweep(x)
-            y = transdat.averageUpDownSweep(y)
-        if 0 == self.comboBoxNorm.currentIndex():
-            pass
-        elif 1 == self.comboBoxNorm.currentIndex():
-            y = y/np.min(y)
-        elif 2 == self.comboBoxNorm.currentIndex():
-            y = y/np.max(y)
-        if 0 == self.comboBoxOffset.currentIndex():
-            pass
-        elif 1 == self.comboBoxOffset.currentIndex():
-            dummy = np.min(y)
-            for i in range(len(y)):
-                y[i] = y[i] - dummy
-        elif 2 == self.comboBoxOffset.currentIndex():
-            dummy = np.mean(y)
-            for i in range(len(y)):
-                y[i] = y[i] - dummy
-        elif 3 == self.comboBoxOffset.currentIndex():
-            dummy = np.mean(y)
-            for i in range(len(y)):
-                y[i] = y[i] - dummy
-        elif 4 == self.comboBoxOffset.currentIndex():
-            dummy = (self.lineEditOffset.text().toDouble())[0]
-            for i in range(len(y)):
-                y[i] = y[i] - dummy
-        if 0 == self.comboBoxSymmetrize.currentIndex():
-            pass
-        elif 1 == self.comboBoxSymmetrize.currentIndex():
-            if self.checkBoxAdmrData.isChecked():
-                pass #symmetrize admr data around symmetry step
-            else:
-                pass #symmetrize r(h) data around center
-        elif 2 == self.comboBoxSymmetrize.currentIndex():
-            if self.checkBoxAdmrData.isChecked():
-                pass #antisymmetrize admr data around symmetry step
-            else:
-                pass #antisymmetrize r(h) data around center
-        return (x,y)
+    
     
     def commitChanges(self):
         """
-        Processes the data and appends them to the plot window
+        Processes the data of the current data object and appends them to the plot window
         """
-        (x,y) = self.processData()
+        currentDataObject = self.listOfDataObjects.pop()
+        currentDataObject.processData(self.comboBoxDeltaMethod.currentIndex(),
+                                      self.checkBoxAverage.isChecked(),self.comboBoxNorm.currentIndex(),
+                                      self.comboBoxOffset.currentIndex(),(self.lineEditOffset.text().toDouble())[0],
+                                      self.comboBoxSymmetrize.currentIndex(),self.checkBoxAdmrData.isChecked(),
+                                      (self.lineEditSymmStep.text().toInt())[0])
+        x = currentDataObject.xCalc
+        y = currentDataObject.yCalc
+        dataObject.processData()   
+        self.listOfDataObjects.append(currentDataObject)        
         self.plot.add_item(make.curve(x,y,color='b',marker='Ellipse', markerfacecolor='b'))
-        self.storageArray.append((x,y))
         self.plot.do_autoscale()  
         
     def newData(self,x,y):
@@ -236,8 +320,7 @@ class plotWidget(QWidget):
         x: np.array contains the data used for the x-axis
         y: np.array contains the data used for the y-axis        
         """
-        self.x = x
-        self.y = y
+        self.listOfDataObjects.append(dataObject(x,y))
         self.commitChanges()
 
     def calculateResidual(self):        
