@@ -55,16 +55,16 @@ class dataObject():
     self.y : np.array
         original y-channel data
     self.xCalc : np.array
-        recalculated x-channel data (zeros until first process data was run)
+        recalculated x-channel data (raw data until first process data was run)
     self.yCalc : np.array
-        recalculated y-channel data (zeros until first process data was run)
+        recalculated y-channel data (raw data until first process data was run)
      
     """
     def __init__(self,x,y):
         self.x = x
         self.y = y
-        self.xCalc = np.zeros(len(x))
-        self.yCalc = np.zeros(len(y))
+        self.xCalc = x
+        self.yCalc = y
         
     def processData(self,switchDeltaMethod = 0, flagAverage = False,
                  switchNormalize = 0, switchOffset = 0, valueOffset = 0,
@@ -164,14 +164,24 @@ class dataObject():
             pass
         elif 1 == switchSymmetrize:
             if flagADMR:
-                pass #symmetrize admr data around symmetry step
+                # symmetrize admr data around symmetry step
+                y = transdat.symmetrizeSignalUpDown(y,valueSymmetrize)
+                x = x[0:len(y)]
             else:
-                pass #symmetrize r(h) data around center
+                # symmetrize r(h) data around center
+                y = transdat.symmetrizeSignal(y,valueSymmetrize)
+                x = x[0:len(y)][::-1]
+                #x = x[valueSymmetrize:len(y)+valueSymmetrize]
         elif 2 == switchSymmetrize:
             if flagADMR:
-                pass #antisymmetrize admr data around symmetry step
-            else:
-                pass #antisymmetrize r(h) data around center
+                #antisymmetrize admr data around symmetry step
+                y = transdat.antiSymmetrizeSignalUpDown(y,valueSymmetrize)
+                x = x[0:len(y)]
+            else:                
+                # symmetrize r(h) data around center
+                y = transdat.antiSymmetrizeSignal(y,valueSymmetrize)
+                x = x[0:len(y)][::-1]
+                #x = x[valueSymmetrize:len(y)+valueSymmetrize]
         
         self.xCalc = x
         self.yCalc = y
@@ -256,10 +266,13 @@ class plotWidget(QWidget):
         
         self.buttonResidual = QPushButton(u"Calculate Residual")
         
+        self.buttonAutoscale = QPushButton(u"Autoscale")
+        
         # Connect SIGNALs
         self.connect(self.buttonFit, SIGNAL('clicked()'), self.dispatchFit)
         self.connect(self.buttonResidual, SIGNAL('clicked()'), self.calculateResidual)
         self.connect(self.buttonCommit, SIGNAL('clicked()'), self.commitChanges)
+        self.connect(self.buttonAutoscale, SIGNAL('clicked()'), self.autoScale)              
                 
         # Make layout        
         #  first row
@@ -283,6 +296,7 @@ class plotWidget(QWidget):
         hlayout3.addWidget(self.comboBoxFit)
         hlayout3.addWidget(self.buttonFit)
         hlayout3.addWidget(self.buttonResidual)
+        hlayout3.addWidget(self.buttonAutoscale)
         #  vertical layout
         vlayout = QVBoxLayout()
         vlayout.addLayout(hlayout)
@@ -290,9 +304,13 @@ class plotWidget(QWidget):
         vlayout.addLayout(hlayout3)
         vlayout.addWidget(self.curveDialog)
         self.setLayout(vlayout)
-        
-    # Here happens the stuff you want to apply to the data @ commit and before plotting
-    
+            
+            
+    def autoScale(self):
+        """
+        Make the plot axis fit the data -> autoscale
+        """
+        self.plot.do_autoscale()
     
     def commitChanges(self):
         """
@@ -306,10 +324,9 @@ class plotWidget(QWidget):
                                       (self.lineEditSymmStep.text().toInt())[0])
         x = currentDataObject.xCalc
         y = currentDataObject.yCalc
-        dataObject.processData()   
         self.listOfDataObjects.append(currentDataObject)        
         self.plot.add_item(make.curve(x,y,color='b',marker='Ellipse', markerfacecolor='b'))
-        self.plot.do_autoscale()  
+        self.plot.do_autoscale()
         
     def newData(self,x,y):
         """
@@ -511,18 +528,7 @@ def previewTransportData():
     win = previewTransportDataWindow()
 
     win.show()
-    _app.exec_()
-        
-     
-    # onchange symmetrize(difference, sum, raw); onchange normalize(to 
-    # max/min/mean/custom value); onchange average up_down_sweep:
-    #   process raw data according to selected options and replace existing plot curve
-    #   display signal statistics
-    # Bonus points: keep raw data associated with a curve in memory so an arbitrary
-    # number of curves can be plotted and individually processed
-    
-    # Long term: Fit sin/cos
-    
+    _app.exec_()    
 
 
 if __name__ == "__main__":

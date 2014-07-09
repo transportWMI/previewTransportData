@@ -92,9 +92,11 @@ def antiSymmetrizeSignal(y, symmetryStep):
     """
     y = np.array(y)
         
-    s = np.zeros(len(y)-symmetryStep)
+    s = np.zeros(len(y)/2)
     for idx in range(0, len(s)):
-        s[idx] = (y[idx] - y[idx+symmetryStep])/2.-(y[0] - y[0+symmetryStep])/2.
+        # (positive field - negative field)/2
+        s[idx] = (y[symmetryStep+idx] - y[symmetryStep-idx])/2
+        #s[idx] = (y[idx] - y[idx+symmetryStep])/2.-(y[0] - y[0+symmetryStep])/2.
     return s
 
 
@@ -149,20 +151,14 @@ def symmetrizeSignalUpDown(y, symmetryStep):
     yU = y[0:len(y)/2] # up sweep (for the sake of the argument)                    
     yD = y[len(y)/2:][::-1] # down sweep w/ same axis
     
-    sL = np.zeros(len(yU)-symmetryStep)
-    for idx in range(0, len(sL)):
-        sL[idx] = (yU[idx] + yD[idx+symmetryStep])/2.-(yU[0] + yD[0+symmetryStep])/2.
+    
+    sL = np.zeros(2*symmetryStep)
+    for idx in range(0, symmetryStep):
+        sL[idx] = (yU[idx] + yD[idx+symmetryStep])/2
+    for idx in range(symmetryStep,2*symmetryStep):
+        sL[idx] = (yU[idx] + yU[idx-symmetryStep])/2.
     return sL
     
-    
-    sU = np.zeros(len(yU)-symmetryStep)
-    for idx in range(0, len(sU)):
-        sU[idx] = (yD[idx][::-1] + yU[idx+symmetryStep][::-1])/2.-(yD[::-1][0] + yU[::-1][0+symmetryStep])/2.
-    return sU
-    
-    y_sym = np.hstack(sL,sU[::-1])
-    
-    return y_sym
     
 
 def antiSymmetrizeSignalUpDown(y, symmetryStep):
@@ -189,14 +185,12 @@ def antiSymmetrizeSignalUpDown(y, symmetryStep):
     yU = y[0:len(y)/2] # up sweep (for the sake of the argument)                    
     yD = y[len(y)/2:][::-1] # down sweep w/ same axis
     
-    s = np.zeros(len(yU)-symmetryStep)
-    for idx in range(0, len(s)):
-        s[idx] = (yU[idx] - yD[idx+symmetryStep])/2.-(yU[0] + yD[0+symmetryStep])/2.
-    return s
-    
-    y_sym = s
-    
-    return y_sym
+    sL = np.zeros(2*symmetryStep)
+    for idx in range(0, symmetryStep):
+        sL[idx] = (yU[idx] - yD[idx+symmetryStep])/2
+    for idx in range(symmetryStep,2*symmetryStep):
+        sL[idx] = (yU[idx] - yU[idx-symmetryStep])/2.
+    return sL
     
 def separateAlternatingSignal(x):
     """
