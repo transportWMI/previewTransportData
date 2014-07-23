@@ -8,9 +8,13 @@ Shared functions for processing transport measurement data.
 """
 
 import numpy as np
-import logging as l
 import scipy.optimize as optimize
 import scipy.fftpack as fftpack
+
+import logging
+logging.basicConfig()
+l = logging.getLogger(__name__)
+l.setLevel(logging.DEBUG)
 
 def symmetrizeSignalZero(y, idx = None):
     """

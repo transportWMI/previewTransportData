@@ -13,10 +13,12 @@ from guiqwt.builder import make
 import numpy as np
 import nptdms
 import re
-import logging as l 
-import lib.transportdata as transdat
+from DataObject import DataObject
 
-l.basicConfig(format='%(levelname)s:%(message)s', level=l.DEBUG)
+import logging
+logging.basicConfig()
+l = logging.getLogger(__name__)
+l.setLevel(logging.DEBUG)
 
 def qwtArrayDoubleToList(array):
     """
