@@ -96,9 +96,11 @@ def antiSymmetrizeSignal(y, symmetryStep):
     """
     y = np.array(y)
         
-    s = np.zeros(len(y)-symmetryStep)
+    s = np.zeros(len(y)/2)
     for idx in range(0, len(s)):
-        s[idx] = (y[idx] - y[idx+symmetryStep])/2.-(y[0] - y[0+symmetryStep])/2.
+        # (positive field - negative field)/2
+        s[idx] = (y[symmetryStep+idx] - y[symmetryStep-idx])/2
+        #s[idx] = (y[idx] - y[idx+symmetryStep])/2.-(y[0] - y[0+symmetryStep])/2.
     return s
 
 
@@ -153,20 +155,14 @@ def symmetrizeSignalUpDown(y, symmetryStep):
     yU = y[0:len(y)/2] # up sweep (for the sake of the argument)                    
     yD = y[len(y)/2:][::-1] # down sweep w/ same axis
     
-    sL = np.zeros(len(yU)-symmetryStep)
-    for idx in range(0, len(sL)):
-        sL[idx] = (yU[idx] + yD[idx+symmetryStep])/2.-(yU[0] + yD[0+symmetryStep])/2.
+    
+    sL = np.zeros(2*symmetryStep)
+    for idx in range(0, symmetryStep):
+        sL[idx] = (yU[idx] + yD[idx+symmetryStep])/2
+    for idx in range(symmetryStep,2*symmetryStep):
+        sL[idx] = (yU[idx] + yU[idx-symmetryStep])/2.
     return sL
     
-    
-    sU = np.zeros(len(yU)-symmetryStep)
-    for idx in range(0, len(sU)):
-        sU[idx] = (yD[idx][::-1] + yU[idx+symmetryStep][::-1])/2.-(yD[::-1][0] + yU[::-1][0+symmetryStep])/2.
-    return sU
-    
-    y_sym = np.hstack(sL,sU[::-1])
-    
-    return y_sym
     
 
 def antiSymmetrizeSignalUpDown(y, symmetryStep):
@@ -193,14 +189,12 @@ def antiSymmetrizeSignalUpDown(y, symmetryStep):
     yU = y[0:len(y)/2] # up sweep (for the sake of the argument)                    
     yD = y[len(y)/2:][::-1] # down sweep w/ same axis
     
-    s = np.zeros(len(yU)-symmetryStep)
-    for idx in range(0, len(s)):
-        s[idx] = (yU[idx] - yD[idx+symmetryStep])/2.-(yU[0] + yD[0+symmetryStep])/2.
-    return s
-    
-    y_sym = s
-    
-    return y_sym
+    sL = np.zeros(2*symmetryStep)
+    for idx in range(0, symmetryStep):
+        sL[idx] = (yU[idx] - yD[idx+symmetryStep])/2
+    for idx in range(symmetryStep,2*symmetryStep):
+        sL[idx] = (yU[idx] - yU[idx-symmetryStep])/2.
+    return sL
     
 def separateAlternatingSignal(x):
     """
@@ -303,17 +297,19 @@ def preprocessTransportData(field, angle, U, I = None, fields = None, n_angle_po
     """        
     
     l.debug("Loading data for dim(field) = %d,  dim(angle) = %d,  dim(U) = %d"%(len(field), len(angle), len(U)))
-    if np.size(fields) != np.size(angle):
+    if np.size(field) == np.size(angle) and n_angle_points == None:
         # automatically calculate field points
         uniqueFields, uniqueFieldStartIdx = np.unique(field, return_index=True)
         l.debug("found unique fields in data: ")
         l.debug(uniqueFields)
     elif n_angle_points:
         # get field indices by user provided parameters
-        uniqueFields = fields
-        uniqueFieldStartIdx = np.zeros_like()
-        for idx, _ in uniqueFields:
+        uniqueFields = field
+        uniqueFieldStartIdx = np.zeros_like(uniqueFields, dtype=np.int)
+        for idx, _ in enumerate(uniqueFields):
             uniqueFieldStartIdx[idx] = idx*n_angle_points
+    else: 
+        l.error("There's not a field value recorded for each angle or .")
             
     # sort fields by index not by field value (so the last field is also the last measurement)
     uniqueFields = uniqueFields[np.argsort(uniqueFieldStartIdx)]
@@ -344,7 +340,7 @@ def preprocessTransportData(field, angle, U, I = None, fields = None, n_angle_po
             returnI = None    
 
 
-        angle = np.array(angle)    
+        angle = np.array(angle)  
         if delta_method:
             data.append({
                 "field": uniqueField,
@@ -441,8 +437,8 @@ def fitcos_squared(x, y, fitY0 = False, guess = None, debug=False):
         phase0 = guess[2]
         if fitY0:
             y00 = guess[3]
-    l.debug("Fit cosin squared. Guessing: Amplitude %.3e, Frequency %.3e, Phase %.3e, Offset y0 %.3e"%(amplitude0, frequency0, phase0, y00))
-
+    print("Fit cosin squared. Guessing: Amplitude %.3e, Frequency %.3e, Phase %.3e, Offset y0 %.3e"%(amplitude0, frequency0, phase0, y00))
+  
     if fitY0:
         guess = [amplitude0, abs(frequency0), phase0, y00]
         (amplitude, frequency, phase, y0), pcov = optimize.curve_fit(
@@ -459,3 +455,4 @@ def fitcos_squared(x, y, fitY0 = False, guess = None, debug=False):
             guess)
         yFit = cossq(x, amplitude, frequency, +phase)
         return (amplitude, frequency, phase, 0, yFit)
+        
