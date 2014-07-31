@@ -4,7 +4,7 @@ Created on Mon Jun 23 10:27:50 2014
 
 @author: hannes.maierflaig
 """
-from guidata.qt.QtGui import QLabel, QDoubleValidator, QIntValidator, QLineEdit, QCheckBox, QVBoxLayout, QMainWindow, QWidget, QComboBox, QGridLayout, QHBoxLayout, QFileDialog, QPushButton, QTextEdit
+from guidata.qt.QtGui import QLabel, QDoubleValidator, QIntValidator, QLineEdit, QCheckBox, QVBoxLayout, QMainWindow, QWidget, QComboBox, QGridLayout, QHBoxLayout, QFileDialog, QPushButton, QTextEdit, QGroupBox
 from guidata.qt.QtCore import SIGNAL
 
 from guiqwt.plot import CurveDialog
@@ -14,6 +14,7 @@ import numpy as np
 import nptdms
 import re
 from DataObject import DataObject
+import transportdata as transdat
 
 import logging
 logging.basicConfig()
@@ -102,9 +103,9 @@ class plotWidget(QWidget):
         self.lineEditOffset.setMaximumWidth(100)
         self.lineEditOffset.setValidator(QDoubleValidator())
         
-        self.buttonCommit = QPushButton(u"Commit Changes")
+        #self.buttonCommit = QPushButton(u"Commit Changes")
         
-        symmOffsetLabel = QLabel(u"Symmetry Step(ADMR)/Center for symmetrization")
+        symmOffsetLabel = QLabel(u"Symmetry Step(ADMR)/Center for symmetrization:")
         self.lineEditSymmStep = QLineEdit() 
         self.lineEditSymmStep.setMaximumWidth(150)
         self.lineEditSymmStep.setValidator(QIntValidator())
@@ -123,36 +124,48 @@ class plotWidget(QWidget):
         # Connect SIGNALs
         self.connect(self.buttonFit, SIGNAL('clicked()'), self.dispatchFit)
         self.connect(self.buttonResidual, SIGNAL('clicked()'), self.calculateResidual)
-        self.connect(self.buttonCommit, SIGNAL('clicked()'), self.commitChanges)
+        #self.connect(self.buttonCommit, SIGNAL('clicked()'), self.commitChanges)
         self.connect(self.buttonAutoscale, SIGNAL('clicked()'), self.autoScale)              
                 
         # Make layout        
-        #  first row
-        hlayout = QHBoxLayout()
-        hlayout.addWidget(self.comboBoxDeltaMethod)
-        hlayout.addWidget(self.checkBoxAverage)
-        hlayout.addWidget(self.comboBoxOffset)
-        hlayout.addWidget(self.lineEditOffset)
-        hlayout.addWidget(self.comboBoxNorm)
-        #  second row
-        hlayout2 = QHBoxLayout()
-        hlayout2.addStretch(2)
-        hlayout2.addWidget(self.comboBoxSymmetrize)
-        hlayout2.addWidget(self.checkBoxAdmrData)
-        hlayout2.addWidget(symmOffsetLabel)
-        hlayout2.addWidget(self.lineEditSymmStep)
-        hlayout2.addWidget(self.buttonCommit)
-        # third row
+
+        # Data processing
+        vLayoutData  = QVBoxLayout()
+                
+        self.hLayoutData0 = QHBoxLayout() # to be filled dynamically 
+        
+        hLayoutData1 = QHBoxLayout()
+        hLayoutData1.addWidget(self.comboBoxDeltaMethod)
+        hLayoutData1.addWidget(self.checkBoxAverage)
+        hLayoutData1.addWidget(self.comboBoxOffset)
+        hLayoutData1.addWidget(self.lineEditOffset)
+        hLayoutData1.addWidget(self.comboBoxNorm)
+        
+        hLayoutData2 = QHBoxLayout()
+        hLayoutData2.addWidget(self.comboBoxSymmetrize)
+        hLayoutData2.addWidget(self.checkBoxAdmrData)
+        hLayoutData2.addWidget(symmOffsetLabel)
+        hLayoutData2.addWidget(self.lineEditSymmStep)
+#        hLayoutData2.addWidget(self.buttonPlot)
+
+        vLayoutData.addLayout(self.hLayoutData0)
+        vLayoutData.addLayout(hLayoutData1)
+        vLayoutData.addLayout(hLayoutData2)
+        
+        groupData = QGroupBox("Processing")
+        groupData.setLayout(vLayoutData)
+
+        # Data fitting
         hlayout3 = QHBoxLayout()
         hlayout3.addStretch(1)
         hlayout3.addWidget(self.comboBoxFit)
         hlayout3.addWidget(self.buttonFit)
         hlayout3.addWidget(self.buttonResidual)
         hlayout3.addWidget(self.buttonAutoscale)
-        #  vertical layout
+        
+        #  Putting it all together
         vlayout = QVBoxLayout()
-        vlayout.addLayout(hlayout)
-        vlayout.addLayout(hlayout2)
+        vlayout.addWidget(groupData)
         vlayout.addLayout(hlayout3)
         vlayout.addWidget(self.curveDialog)
         self.setLayout(vlayout)
@@ -279,29 +292,30 @@ class previewTransportDataWindow(QWidget):
         self.setLayout(layout)
         self.fileTextWindow = QTextEdit()
         self.fileTextWindow.setMaximumWidth(750)
-        self.fileTextWindow.setMaximumHeight(50)
+        self.fileTextWindow.setMaximumHeight(24)
+        self.fileTextWindow.setDisabled(True)
         self.groupBox = QComboBox()
         self.groupBox.setMinimumWidth(200)
         self.xChannelBox = QComboBox()  
         self.xChannelBox.setMinimumWidth(250)
         self.yChannelBox = QComboBox()  
         self.yChannelBox.setMinimumWidth(250)
-        button1 = QPushButton(u"Select File")
-        button1.setMaximumWidth(100)
-        self.plotButton = QPushButton(u"Plot")
-        self.plotButton.setMaximumWidth(100)
+        buttonFile = QPushButton(u"Select File")
+        buttonFile.setMaximumWidth(100)
+        self.buttonPlot = QPushButton(u"Plot")
+        self.buttonPlot.setMaximumWidth(100)
         
         # Connect SIGNALs
-        self.connect(button1, SIGNAL('clicked()'), self.selectFile)
-        self.connect(self.plotButton, SIGNAL('clicked()'), self.plot)
+        self.connect(buttonFile, SIGNAL('clicked()'), self.selectFile)
+        self.connect(self.buttonPlot, SIGNAL('clicked()'), self.plot)
         
         # Build Layout
         layout.addWidget(self.fileTextWindow,0,0,1,3)
-        layout.addWidget(button1,0,3)
+        layout.addWidget(buttonFile,0,3)
         layout.addWidget(self.groupBox,1,0)
         layout.addWidget(self.xChannelBox,1,1)
         layout.addWidget(self.yChannelBox,1,2)
-        layout.addWidget(self.plotButton,1,3)
+        layout.addWidget(self.buttonPlot,1,3)
         layout.columnStretch(4)
         
         # Initialize store for TDMSfiles
@@ -316,8 +330,8 @@ class previewTransportDataWindow(QWidget):
         # Initialize plot widget
         self.widget = plotWidget(self)
         self.layout().addWidget(self.widget,2,0,1,4)
-        self.widget.buttonCommit.setEnabled(False)
-        self.plotButton.setEnabled(False)
+#        self.widget.buttonCommit.setEnabled(False)
+        self.buttonPlot.setEnabled(False)
         
     def selectFile(self):
         """
@@ -358,7 +372,7 @@ class previewTransportDataWindow(QWidget):
         if self.selectedYChannel > 0 and self.selectedYChannel < self.yChannelBox.count():
             self.yChannelBox.setCurrentIndex(self.selectedYChannel)
 
-        self.plotButton.setEnabled(True)
+        self.buttonPlot.setEnabled(True)
         
     def plot(self):
         """
