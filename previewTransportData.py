@@ -4,7 +4,7 @@ Created on Mon Jun 23 10:27:50 2014
 
 @author: hannes.maierflaig
 """
-from guidata.qt.QtGui import QLabel, QDoubleValidator, QIntValidator, QLineEdit, QCheckBox, QVBoxLayout, QMainWindow, QWidget, QComboBox, QGridLayout, QHBoxLayout, QFileDialog, QPushButton, QTextEdit, QGroupBox
+from guidata.qt.QtGui import QLabel, QDoubleValidator, QIntValidator, QLineEdit, QCheckBox, QVBoxLayout, QMainWindow, QWidget, QComboBox, QGridLayout, QHBoxLayout, QFileDialog, QPushButton, QGroupBox
 from guidata.qt.QtCore import SIGNAL
 
 from guiqwt.plot import CurveDialog
@@ -103,12 +103,12 @@ class plotWidget(QWidget):
         self.lineEditOffset.setMaximumWidth(100)
         self.lineEditOffset.setValidator(QDoubleValidator())
         
-        #self.buttonCommit = QPushButton(u"Commit Changes")
-        
-        symmOffsetLabel = QLabel(u"Symmetry Step(ADMR)/Center for symmetrization:")
+        self.labelSymmStep = QLabel(u"")
+        self.labelSymmStep.setEnabled(False)
         self.lineEditSymmStep = QLineEdit() 
         self.lineEditSymmStep.setMaximumWidth(150)
         self.lineEditSymmStep.setValidator(QIntValidator())
+        self.lineEditSymmStep.setEnabled(False)
         
         # Fitting
         self.buttonFit = QPushButton(u"Fit")
@@ -124,9 +124,10 @@ class plotWidget(QWidget):
         # Connect SIGNALs
         self.connect(self.buttonFit, SIGNAL('clicked()'), self.dispatchFit)
         self.connect(self.buttonResidual, SIGNAL('clicked()'), self.calculateResidual)
-        #self.connect(self.buttonCommit, SIGNAL('clicked()'), self.commitChanges)
         self.connect(self.buttonAutoscale, SIGNAL('clicked()'), self.autoScale)              
-                
+        self.connect(self.checkBoxAdmrData, SIGNAL('stateChanged(int)'), self.uiSymmetrization)
+        self.connect(self.comboBoxSymmetrize, SIGNAL('currentIndexChanged(QString)'), self.uiSymmetrization)
+
         # Make layout        
 
         # Data processing
@@ -144,7 +145,7 @@ class plotWidget(QWidget):
         hLayoutData2 = QHBoxLayout()
         hLayoutData2.addWidget(self.comboBoxSymmetrize)
         hLayoutData2.addWidget(self.checkBoxAdmrData)
-        hLayoutData2.addWidget(symmOffsetLabel)
+        hLayoutData2.addWidget(self.labelSymmStep)
         hLayoutData2.addWidget(self.lineEditSymmStep)
 #        hLayoutData2.addWidget(self.buttonPlot)
 
@@ -152,8 +153,8 @@ class plotWidget(QWidget):
         vLayoutData.addLayout(hLayoutData1)
         vLayoutData.addLayout(hLayoutData2)
         
-        groupData = QGroupBox("Processing")
-        groupData.setLayout(vLayoutData)
+        groupDataProcess = QGroupBox("Processing")
+        groupDataProcess.setLayout(vLayoutData)
 
         # Data fitting
         hlayout3 = QHBoxLayout()
@@ -163,14 +164,38 @@ class plotWidget(QWidget):
         hlayout3.addWidget(self.buttonResidual)
         hlayout3.addWidget(self.buttonAutoscale)
         
+        groupDataFit = QGroupBox("Fitting and Plotting")
+        groupDataFit.setLayout(hlayout3)
+        
         #  Putting it all together
         vlayout = QVBoxLayout()
-        vlayout.addWidget(groupData)
-        vlayout.addLayout(hlayout3)
+        vlayout.addWidget(groupDataProcess)
+        vlayout.addWidget(groupDataFit)
         vlayout.addWidget(self.curveDialog)
         self.setLayout(vlayout)
             
             
+    def uiSymmetrization(self, state):
+        """ 
+        Change UI (enabled state of text box etc) on selecting (anti-)symmetrization
+        method
+        """
+        l.debug("Symmetrization method changed to %d"%self.comboBoxSymmetrize.currentIndex())
+        if self.comboBoxSymmetrize.currentIndex() > 0:
+            self.checkBoxAdmrData.setEnabled(True)
+            self.labelSymmStep.setEnabled(True)
+            self.lineEditSymmStep.setEnabled(True)
+            if self.checkBoxAdmrData.checkState():
+                self.labelSymmStep.setText("Symmetry step [in units of data points]")
+            else:
+                self.labelSymmStep.setText("Center of symmetrization [data point index]")
+            
+        else:
+            self.checkBoxAdmrData.setEnabled(False)
+            self.labelSymmStep.setEnabled(False)
+            self.lineEditSymmStep.setEnabled(False)
+        
+        
     def autoScale(self):
         """
         Make the plot axis fit the data -> autoscale
@@ -189,11 +214,12 @@ class plotWidget(QWidget):
                                       (self.lineEditSymmStep.text().toInt())[0])
         x = currentDataObject.xCalc
         y = currentDataObject.yCalc
+        
         self.listOfDataObjects.append(currentDataObject)        
-        self.plot.add_item(make.curve(x,y,color='b',marker='Ellipse', markerfacecolor='b'))
+        self.plot.add_item(make.curve(x,y,color='b',marker='Ellipse', markerfacecolor='b', title = currentDataObject.label))
         self.plot.do_autoscale()
         
-    def newData(self,x,y):
+    def newData(self,x,y, label = None):
         """
         Adds new data to the plot after recalculating everything as specified by the GUI
         
@@ -202,8 +228,9 @@ class plotWidget(QWidget):
         x: np.array contains the data used for the x-axis
         y: np.array contains the data used for the y-axis        
         """
-        self.listOfDataObjects.append(DataObject(x,y))
+        self.listOfDataObjects.append(DataObject(x,y, label = label))
         self.commitChanges()
+
 
     def calculateResidual(self):        
         """
@@ -290,16 +317,28 @@ class previewTransportDataWindow(QWidget):
         #Initialize Layout    
         layout = QGridLayout()
         self.setLayout(layout)
-        self.fileTextWindow = QTextEdit()
-        self.fileTextWindow.setMaximumWidth(750)
-        self.fileTextWindow.setMaximumHeight(24)
-        self.fileTextWindow.setDisabled(True)
+        self.fileTextWindow = QLineEdit()
         self.groupBox = QComboBox()
-        self.groupBox.setMinimumWidth(200)
+        self.groupBox.setMinimumWidth(200)        
+        self.groupBox.addItem("Data group")
+        self.groupBox.setDisabled(1)
+        self.fieldChannelBox = QComboBox()
+        self.fieldChannelBox.setMinimumWidth(100)
+        self.fieldChannelBox.addItem("Non-Unique Field Channel")
+        self.fieldChannelBox.setDisabled(1)
+        self.fieldBox = QComboBox()
+        self.fieldBox.setMinimumWidth(50)
+        self.fieldBox.setMaximumWidth(50)
+        self.fieldBox.addItem("")
+        self.fieldBox.setDisabled(1)
         self.xChannelBox = QComboBox()  
         self.xChannelBox.setMinimumWidth(250)
+        self.xChannelBox.addItem("X-Channel")
+        self.xChannelBox.setDisabled(1)        
         self.yChannelBox = QComboBox()  
         self.yChannelBox.setMinimumWidth(250)
+        self.yChannelBox.addItem("Y-Channel")
+        self.yChannelBox.setDisabled(1)        
         buttonFile = QPushButton(u"Select File")
         buttonFile.setMaximumWidth(100)
         self.buttonPlot = QPushButton(u"Plot")
@@ -310,27 +349,24 @@ class previewTransportDataWindow(QWidget):
         self.connect(self.buttonPlot, SIGNAL('clicked()'), self.plot)
         
         # Build Layout
-        layout.addWidget(self.fileTextWindow,0,0,1,3)
-        layout.addWidget(buttonFile,0,3)
+        layout.addWidget(self.fileTextWindow,0,0,1,5)
+        layout.addWidget(buttonFile,0,5)
         layout.addWidget(self.groupBox,1,0)
-        layout.addWidget(self.xChannelBox,1,1)
-        layout.addWidget(self.yChannelBox,1,2)
-        layout.addWidget(self.buttonPlot,1,3)
-        layout.columnStretch(4)
+        layout.addWidget(self.fieldChannelBox,1,1)
+        layout.addWidget(self.fieldBox,1,2)
+        layout.addWidget(self.xChannelBox,1,3)
+        layout.addWidget(self.yChannelBox,1,4)
+        layout.addWidget(self.buttonPlot,1,5)
+        layout.columnStretch(5)
         
         # Initialize store for TDMSfiles
         self.tdmsFile = None
         self.groupList = []
         self.ChannelList = []
-    
-        # Initialize memory for last selected x and y channel
-        self.selectedXChannel = 0
-        self.selectedYChannel = 0
                 
         # Initialize plot widget
         self.widget = plotWidget(self)
-        self.layout().addWidget(self.widget,2,0,1,4)
-#        self.widget.buttonCommit.setEnabled(False)
+        self.layout().addWidget(self.widget,2,0,1,6)
         self.buttonPlot.setEnabled(False)
         
     def selectFile(self):
@@ -338,54 +374,101 @@ class previewTransportDataWindow(QWidget):
         Reads the .tdms file written in self.fileTextWindow and populates self.groupBox with the groups of the .tdms file.
         """
         self.fileTextWindow.setText(QFileDialog.getOpenFileName(self,u"Open File","",u"TDMS (*.tdms);;All files (*.*)"))
-        #read TdmsFile and fill groupBox        
-        self.tdmsFile = nptdms.TdmsFile(self.fileTextWindow.toPlainText())
+        # Read TdmsFile and fill groupBox        
+        self.tdmsFile = nptdms.TdmsFile(self.fileTextWindow.text())
         self.groupBox.clear()
         self.groupList = []
         for group in self.tdmsFile.groups():
             if group.startswith("Read."):
                 self.groupBox.addItem(group)
                 self.groupList.append(group)
+        self.groupBox.setEnabled(1)
+        # Fill channel boxes when group box is activated
+        self.groupBox.activated['QString'].connect(self.fillChannelBoxes)       
 
-        # Connect signal to activated
-        self.groupBox.activated['QString'].connect(self.fillChannelBoxes)
 
     def fillChannelBoxes(self,index):
         """
-        Populates self.xChannelBox and self.yChannelBox with the channels of the selected group
+        Populate self.xChannelBox and self.yChannelBox with the channels of the selected group
         If possible, uses the channels selected the previous time.
         """
         self.channelList = self.tdmsFile.group_channels(self.groupList[self.groupBox.currentIndex()])
         
-        # Empty channelBox        
+        # Store currently selected channels
+        selectedFieldChannel = self.fieldChannelBox.currentIndex()
+        selectedXChannel = self.xChannelBox.currentIndex()
+        selectedYChannel = self.yChannelBox.currentIndex()    
+
+        # Empty channelBox      
+        self.fieldChannelBox.clear()
+        self.fieldChannelBox.addItem("No multiple fields in file")
         self.xChannelBox.clear()
         self.yChannelBox.clear()
         
         # Fill with new channels                
         for channel in self.channelList:
+            self.fieldChannelBox.addItem(re.search(r"'/'(.+)'",channel.path).group(1))
             self.xChannelBox.addItem(re.search(r"'/'(.+)'",channel.path).group(1))
             self.yChannelBox.addItem(re.search(r"'/'(.+)'",channel.path).group(1))
 
-        # Select the last selected index automatically is possible
-        if self.selectedXChannel > 0 and self.selectedXChannel < self.xChannelBox.count():
-            self.xChannelBox.setCurrentIndex(self.selectedXChannel)
-        if self.selectedYChannel > 0 and self.selectedYChannel < self.yChannelBox.count():
-            self.yChannelBox.setCurrentIndex(self.selectedYChannel)
+        # Recall selected channels
+        self.fieldChannelBox.setCurrentIndex(selectedFieldChannel)
+        self.xChannelBox.setCurrentIndex(selectedXChannel)
+        self.yChannelBox.setCurrentIndex(selectedYChannel)
 
-        self.buttonPlot.setEnabled(True)
+        # Enable boxes
+        self.fieldChannelBox.setEnabled(1)
+        self.xChannelBox.setEnabled(1)
+        self.yChannelBox.setEnabled(1)
+        self.buttonPlot.setEnabled(1)
+        
+        # Recalculate available fields when changing the field channel         
+        self.fieldChannelBox.activated['QString'].connect(self.fillFieldBox)
+     
+     
+    def fillFieldBox(self,index):
+        """
+        Populate field combo box with unique fields from channel selected in
+        self.fieldChannelBox
+        """
+        # Get unique fields and sort by index (thus by order of measurement)
+        fields, uniqueFieldStartIdx = np.unique(self.channelList[self.fieldChannelBox.currentIndex()-1].data, return_index=True)
+        fields = fields[np.argsort(uniqueFieldStartIdx)]
+        l.debug("Found %d fields in channel %s: "%(np.size(fields), str(self.fieldChannelBox.currentText())))
+        
+        # Populate combo box
+        self.fieldBox.clear()
+        for field in fields:
+            self.fieldBox.addItem("%.2fT"%field)
+            
+        self.fieldBox.setEnabled(1)
+        
         
     def plot(self):
         """
         Hands new data to the plotWidget() to be displayed (or to be appended to the display)
+        
         """
-        self.widget.buttonCommit.setEnabled(True)
-        x = self.channelList[self.xChannelBox.currentIndex()].data
-        y = self.channelList[self.yChannelBox.currentIndex()].data
+        rawX = self.channelList[self.xChannelBox.currentIndex()].data
+        rawY = self.channelList[self.yChannelBox.currentIndex()].data
         
-        self.selectedXChannel = self.xChannelBox.currentIndex()
-        self.selectedYChannel = self.yChannelBox.currentIndex()
+        if self.fieldChannelBox.currentIndex() > 0:
+            rawField = self.channelList[self.fieldChannelBox.currentIndex()-1].data
         
-        self.widget.newData(x,y)
+            dataStruct = transdat.preprocessTransportData(rawField, rawX, rawY,delta_method = False)
+            
+            fieldLabel = "%.2fT"%dataStruct[self.fieldBox.currentIndex()]["field"]
+            x = dataStruct[self.fieldBox.currentIndex()-1]["angle"]
+            y = dataStruct[self.fieldBox.currentIndex()-1]["signal"]
+        else:
+            fieldLabel = None
+            x = rawX
+            y = rawY
+            
+        l.debug("Adding data with label \"%s\", len(x) = %d, len(y) = %d."%(str(fieldLabel), len(x), len(y)))
+           
+        self.widget.newData(x,y, label = fieldLabel)
+        
         
 def previewTransportData():
     """

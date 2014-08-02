@@ -35,12 +35,13 @@ class DataObject():
         recalculated y-channel data (raw data until first process data was run)
      
     """    
-    def __init__(self,x,y):
+    def __init__(self,x,y, label = None):
         l.info("Adding new data set with len(x) = %d"%np.size(x))
         self.x = x
         self.y = y
         self.xCalc = x
         self.yCalc = y
+        self.label = label
         
     def processData(self,switchDeltaMethod = 0, flagAverage = False,
                  switchNormalize = 0, switchOffset = 0, valueOffset = 0,

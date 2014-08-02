@@ -259,7 +259,7 @@ def preprocessTransportData(field, angle, U, I = None, fields = None, n_angle_po
     ----------
     data : dict of {dict for each field}
         field : 
-            unique field values
+            unique field value
         angle : 
             unique angles (0,1,2,...2,1,0 for up-down sweep, not 0,0,1,1,… though)
         I : 
@@ -378,7 +378,7 @@ def fitcos(x, y, fitY0 = False, guess = None):
         idx = (yhat**2).argmax()
         freqs = fftpack.rfftfreq(np.size(x), d = (x[0]-x[1])/(2*np.pi))
         frequency0 = freqs[idx]
-        if frequency0 == np.Inf:
+        if frequency0 == np.Inf or frequency0 == 0:
             frequency0 = 0.001
         # maximum to find guess for amplitude
         amplitude0 = np.abs(max(y)-min(y))/2
