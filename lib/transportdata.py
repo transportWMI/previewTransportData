@@ -410,8 +410,8 @@ def fitcos(x, y, fitY0 = False, guess = None):
         return (amplitude, frequency, phase, 0, yFit)
         
         
-def fitcos_squared(x, y, fitY0 = False, guess = None, debug=False):
-    """ untested, probably not working correctly"""
+def fitcos_squared(x, y, fitY0 = False, guess = None):
+    """ Fit a cosin² to the data in params x and y"""
     def cossq(x, amplitude, frequency, phase):
         return amplitude * np.cos(frequency * x + phase)**2   
     def cossq_y0(x, amplitude, frequency, phase, y0):
@@ -424,9 +424,9 @@ def fitcos_squared(x, y, fitY0 = False, guess = None, debug=False):
         yhat = fftpack.rfft(y)
         idx = (yhat**2).argmax()
         freqs = fftpack.rfftfreq(np.size(x), d = (x[0]-x[1])/(2*np.pi))
-        frequency0 = freqs[idx]
-        if frequency0 == np.Inf:
-            frequency0 = 0.001
+        frequency0 = freqs[idx]*2
+        if frequency0 == np.Inf or frequency0 == 0:
+            frequency0 = 0.01
         # maximum to find guess for amplitude
         amplitude0 = np.abs(max(y)-min(y))/2
         y00 = (max(y)-min(y))/2+min(y)
@@ -437,7 +437,7 @@ def fitcos_squared(x, y, fitY0 = False, guess = None, debug=False):
         phase0 = guess[2]
         if fitY0:
             y00 = guess[3]
-    print("Fit cosin squared. Guessing: Amplitude %.3e, Frequency %.3e, Phase %.3e, Offset y0 %.3e"%(amplitude0, frequency0, phase0, y00))
+    l.debug("Fit cosin squared. Guessing: Amplitude %.3e, Frequency %.3e, Phase %.3e, Offset y0 %.3e"%(amplitude0, frequency0, phase0, y00))
   
     if fitY0:
         guess = [amplitude0, abs(frequency0), phase0, y00]

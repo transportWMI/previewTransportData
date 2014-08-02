@@ -55,23 +55,22 @@ class plotWidget(QWidget):
         QWidget.__init__(self, parent)
         self.setMinimumSize(500, 500)
 
-        #initialize data storage
+        # Initialize data storage
         self.symmStep = None
         self.x = None
         self.y = None
         self.listOfDataObjects = []
         
-        #initialize plot widget
+        ## Initialize plot widget
         self.curveDialog = CurveDialog(edit=False,toolbar=True)
         self.curveDialog.get_itemlist_panel().show()
               
         self.plot = self.curveDialog.get_plot()
         self.plot.set_antialiasing(True)
-        self.plot.do_autoscale()
         
         
-        # Initialize layout    
-        # Preprocessing
+        ## Create Widgets
+        # Processing
         self.comboBoxDeltaMethod = QComboBox()
         self.comboBoxDeltaMethod.addItem(u"Raw data [n]")        
         self.comboBoxDeltaMethod.addItem(u"Raw data [2n-1]")
@@ -124,15 +123,15 @@ class plotWidget(QWidget):
         # Connect SIGNALs
         self.connect(self.buttonFit, SIGNAL('clicked()'), self.dispatchFit)
         self.connect(self.buttonResidual, SIGNAL('clicked()'), self.calculateResidual)
-        self.connect(self.buttonAutoscale, SIGNAL('clicked()'), self.autoScale)              
+        self.connect(self.buttonAutoscale, SIGNAL('clicked()'), self.plot.do_autoscale)              
+        self.connect(self.comboBoxOffset, SIGNAL('stateChanged(int)'), self.uiOffset)
         self.connect(self.checkBoxAdmrData, SIGNAL('stateChanged(int)'), self.uiSymmetrization)
         self.connect(self.comboBoxSymmetrize, SIGNAL('currentIndexChanged(QString)'), self.uiSymmetrization)
 
-        # Make layout        
-
-        # Data processing
+        ## layout        
+        # Processing
         vLayoutData  = QVBoxLayout()
-                
+    
         self.hLayoutData0 = QHBoxLayout() # to be filled dynamically 
         
         hLayoutData1 = QHBoxLayout()
@@ -147,12 +146,12 @@ class plotWidget(QWidget):
         hLayoutData2.addWidget(self.checkBoxAdmrData)
         hLayoutData2.addWidget(self.labelSymmStep)
         hLayoutData2.addWidget(self.lineEditSymmStep)
-#        hLayoutData2.addWidget(self.buttonPlot)
-
+        
         vLayoutData.addLayout(self.hLayoutData0)
         vLayoutData.addLayout(hLayoutData1)
         vLayoutData.addLayout(hLayoutData2)
         
+
         groupDataProcess = QGroupBox("Processing")
         groupDataProcess.setLayout(vLayoutData)
 
@@ -181,7 +180,7 @@ class plotWidget(QWidget):
         method
         """
         l.debug("Symmetrization method changed to %d"%self.comboBoxSymmetrize.currentIndex())
-        if self.comboBoxSymmetrize.currentIndex() > 0:
+        if self.comboBoxSymmetrize.currentIndex() > 0: # any symm. method has been selected
             self.checkBoxAdmrData.setEnabled(True)
             self.labelSymmStep.setEnabled(True)
             self.lineEditSymmStep.setEnabled(True)
@@ -189,20 +188,25 @@ class plotWidget(QWidget):
                 self.labelSymmStep.setText("Symmetry step [in units of data points]")
             else:
                 self.labelSymmStep.setText("Center of symmetrization [data point index]")
-            
         else:
             self.checkBoxAdmrData.setEnabled(False)
             self.labelSymmStep.setEnabled(False)
             self.lineEditSymmStep.setEnabled(False)
-        
-        
-    def autoScale(self):
+
+
+    def uiOffset(self, state):
+        """ 
+        Change enabled state of text box on selecting offset subtraction
         """
-        Make the plot axis fit the data -> autoscale
-        """
-        self.plot.do_autoscale()
+        l.debug("Symmetrization method changed to %d"%self.comboBoxSymmetrize.currentIndex())
+        if (self.comboBoxOffset.currentIndex() == 0      # no offset subtraction
+            or self.comboBoxOffset.currentIndex() == 4): # user defined value 
+            self.lineEditOffset.setEnabled(True)
+        else:
+            self.lineEditOffset.setEnabled(False)
+            
     
-    def commitChanges(self):
+    def processAndPlotData(self):
         """
         Processes the data of the current data object and appends them to the plot window
         """
@@ -219,6 +223,7 @@ class plotWidget(QWidget):
         self.plot.add_item(make.curve(x,y,color='b',marker='Ellipse', markerfacecolor='b', title = currentDataObject.label))
         self.plot.do_autoscale()
         
+        
     def newData(self,x,y, label = None):
         """
         Adds new data to the plot after recalculating everything as specified by the GUI
@@ -229,7 +234,7 @@ class plotWidget(QWidget):
         y: np.array contains the data used for the y-axis        
         """
         self.listOfDataObjects.append(DataObject(x,y, label = label))
-        self.commitChanges()
+        self.processAndPlotData()
 
 
     def calculateResidual(self):        
@@ -280,7 +285,7 @@ class plotWidget(QWidget):
     
         self.plot.add_item(make.curve(ndarrayToList(x),ndarrayToList(yFit),color='r'))
         self.plot.replot()
-        print(amplitude, frequency, phase, y0)
+        l.info(u"cos fit: amplitude %.3e, frequency %.3e, phase %.3e, offset y0 %.3e"%(amplitude, frequency, phase, y0))
         
 
     def fitCosSq(self, curveItem):
@@ -293,7 +298,7 @@ class plotWidget(QWidget):
     
         self.plot.add_item(make.curve(ndarrayToList(x),ndarrayToList(yFit),color='r'))
         self.plot.replot()
-        print(amplitude, frequency, phase, y0)
+        l.info(u"cos² fit: amplitude %.3e, frequency %.3e, phase %.3e, offset y0 %.3e"%(amplitude, frequency, phase, y0))
 
 
 
@@ -345,7 +350,7 @@ class previewTransportDataWindow(QWidget):
         self.buttonPlot.setMaximumWidth(100)
         
         # Connect SIGNALs
-        self.connect(buttonFile, SIGNAL('clicked()'), self.selectFile)
+        self.connect(buttonFile, SIGNAL('clicked()'), self.readFile)
         self.connect(self.buttonPlot, SIGNAL('clicked()'), self.plot)
         
         # Build Layout
@@ -369,9 +374,9 @@ class previewTransportDataWindow(QWidget):
         self.layout().addWidget(self.widget,2,0,1,6)
         self.buttonPlot.setEnabled(False)
         
-    def selectFile(self):
+    def readFile(self):
         """
-        Reads the .tdms file written in self.fileTextWindow and populates self.groupBox with the groups of the .tdms file.
+        Read the .tdms file written in self.fileTextWindow and populates self.groupBox with the groups of the .tdms file.
         """
         self.fileTextWindow.setText(QFileDialog.getOpenFileName(self,u"Open File","",u"TDMS (*.tdms);;All files (*.*)"))
         # Read TdmsFile and fill groupBox        
