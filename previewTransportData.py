@@ -192,7 +192,7 @@ class plotWidget(QWidget):
             self.labelSymmStep.setEnabled(True)
             self.lineEditSymmStep.setEnabled(True)
             if self.checkBoxAdmrData.checkState():
-                self.labelSymmStep.setText("Symmetry step [in units of data points]")
+                self.labelSymmStep.setText("Symmetry step [in units x]")
             else:
                 self.labelSymmStep.setText("Center of symmetrization [in units of x]")
         else:

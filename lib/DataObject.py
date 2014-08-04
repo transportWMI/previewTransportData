@@ -15,6 +15,10 @@ class DataObject():
     """
     Creates a data object containing data for x and y channel
     optional flags can be passed to the initializer for recalculation
+
+    TODO: FIXME: Make data processing operations modular and store which operations
+    have been applied (and in which order) (introduce self.averageUpDown,
+    self.symmetrize(admrFlag), self.antisymmetrize(admrFlag), self.offset() etc.)
     
     Parameters
     -------
@@ -80,7 +84,7 @@ class DataObject():
             False   -> R(H) data (default)
             True    -> ADMR data
         valueSymmetrize : double
-            value of the symmetry step (ADMR) or center for symmetrization (R(H)) (default = 0)
+            value of the symmetry step (ADMR) or center for symmetrization (in units of x; R(H)) (default = 0)
         """
         x = self.x
         y = self.y
@@ -104,10 +108,55 @@ class DataObject():
             x = transdat.separateAlternatingSignal(self.x)[0]
             y = transdat.separateAlternatingSignal(self.y)[0] +  transdat.separateAlternatingSignal(self.y)[1]
             
+            
         if flagAverage:
             # average up and down sweep
             x = transdat.averageUpDownSweep(x)
             y = transdat.averageUpDownSweep(y)
+
+                
+        if switchSymmetrize and flagADMR and not flagAverage:
+            #admr data        
+            # only regard one half of the data for finding the period
+            stepIdx = int(np.abs((np.abs(x[0:int(len(x))+1/2]-0)).argmin() 
+                       - (np.abs(x[0:int(len(x)/2+1)]-valueSymmetrize)).argmin()))
+            stepWidth = (x[(np.abs(x[0:int(len(x)/2+1)]-0)).argmin()] 
+                        - x[np.abs(x[1:int(len(x)/2+1)]-valueSymmetrize).argmin()+1])
+            l.debug("(Anti-)Symmetrizing admr data with period %d (val:%f)"%(stepIdx,np.abs(stepWidth)))
+            
+            if 1 == switchSymmetrize: # symmetrize
+                y = transdat.symmetrizeSignalUpDown(y,stepIdx)
+                x = x[0:len(y)]
+            elif 2 == switchSymmetrize: #antisymmetrize
+                y = transdat.antiSymmetrizeSignalUpDown(y,stepIdx)
+                x = x[0:len(y)]
+        elif switchSymmetrize and  flagADMR and flagAverage:
+            #admr data where up and down sweep are already averaged
+            stepIdx = int(np.abs((np.abs(x-0)).argmin() 
+                       - (np.abs(x-valueSymmetrize)).argmin()))
+            stepWidth = (x[(np.abs(x-0)).argmin()] 
+                        - x[np.abs(x-valueSymmetrize).argmin()+1])
+            l.debug("(Anti-)Symmetrizing admr data with period %d (val:%f)"%(stepIdx,np.abs(stepWidth)))
+            
+            if 1 == switchSymmetrize: # symmetrize
+                y = transdat.symmetrizeSignal(y,stepIdx)
+                x = x[0:len(y)]
+            elif 2 == switchSymmetrize: #antisymmetrize
+                y = transdat.antiSymmetrizeSignal(y,stepIdx)
+                x = x[0:len(y)]
+        elif switchSymmetrize and not flagADMR:
+            centerIdx = (np.abs(x-valueSymmetrize)).argmin()
+            l.debug("(Anti-)Symmetrizing data of len %d around index %d (val: %f)"%(len(x),centerIdx, x[centerIdx]))
+            # R(H) data
+            if 1 == switchSymmetrize: # symmetrize
+                y = transdat.symmetrizeSignalZero(y,centerIdx)
+                x = x[0:len(y)][::-1]
+                #x = x[valueSymmetrize:len(y)+valueSymmetrize]
+            elif 2 == switchSymmetrize: # symmetrize
+                y = transdat.antiSymmetrizeSignalZero(y,centerIdx)
+                x = x[0:len(y)][::-1]
+                #x = x[valueSymmetrize:len(y)+valueSymmetrize]
+        
         if 0 == switchNormalize:
             pass
         elif 1 == switchNormalize:
@@ -138,33 +187,6 @@ class DataObject():
             for i in range(len(y)):
                 y[i] = y[i] - valueOffset
                 
-        if switchSymmetrize and flagADMR and not flagAverage:
-            #admr data
-            if 1 == switchSymmetrize: # symmetrize
-                y = transdat.symmetrizeSignalUpDown(y,valueSymmetrize)
-                x = x[0:len(y)]
-            elif 2 == switchSymmetrize: #antisymmetrize
-                y = transdat.antiSymmetrizeSignalUpDown(y,valueSymmetrize)
-                x = x[0:len(y)]
-        elif switchSymmetrize and  flagADMR and flagAverage:
-            if 1 == switchSymmetrize: # symmetrize
-                y = transdat.symmetrizeSignal(y,valueSymmetrize)
-                x = x[0:len(y)]
-            elif 2 == switchSymmetrize: #antisymmetrize
-                y = transdat.antiSymmetrizeSignal(y,valueSymmetrize)
-                x = x[0:len(y)]
-        elif switchSymmetrize and not flagADMR:
-            idx = (np.abs(x-valueSymmetrize)).argmin()
-            l.debug("(Anti-)Symmetrizing data of len %d around index %d (val: %f)"%(len(x),idx, x[idx]))
-            # R(H) data
-            if 1 == switchSymmetrize: # symmetrize
-                y = transdat.symmetrizeSignalZero(y,idx)
-                x = x[0:len(y)][::-1]
-                #x = x[valueSymmetrize:len(y)+valueSymmetrize]
-            elif 2 == switchSymmetrize: # symmetrize
-                y = transdat.antiSymmetrizeSignalZero(y,idx)
-                x = x[0:len(y)][::-1]
-                #x = x[valueSymmetrize:len(y)+valueSymmetrize]
-        
+                
         self.xCalc = x
         self.yCalc = y

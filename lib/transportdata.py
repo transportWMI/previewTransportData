@@ -44,7 +44,6 @@ def symmetrizeSignalZero(y, idx = None):
         idx_end = min((np.size(y), idx*2+1))
         idx_start = max(0, idx-(idx_end - idx)+1)
         
-    l.debug("startidx: %f, endidx: %f"%(idx_start,idx_end))
     y = (y[idx_start:idx] + y[idx+1:idx_end][::-1])/2
     return y
 
@@ -76,8 +75,6 @@ def antiSymmetrizeSignalZero(y, idx = None):
     else:
         idx_end = min((np.size(y), idx*2+1))
         idx_start = max(0, idx-(idx_end - idx)+1)
-
-    l.debug("startidx: %f, endidx: %f"%(idx_start,idx_end))
         
     y = (y[idx_start:idx] - y[idx+1:idx_end][::-1])/2
     return y
@@ -85,9 +82,9 @@ def antiSymmetrizeSignalZero(y, idx = None):
     
 def antiSymmetrizeSignal(y, symmetryStep):
     """    
-    Dischard symmetric (around center index or around idx) part of a signal by 
-    taking the difference of the signal at x[idx_centre +n] and x[idx_centre +n + symmetry_step]
-    get your corresponding x data as x[0:len(y)/]
+    Dischard symmetric part of a signal by 
+    taking the difference of the signal at x[n] and x[n + symmetry_step]
+    get your corresponding x data as x[0:len(y)/2]
                 
     Parameters
     ----------
@@ -106,17 +103,16 @@ def antiSymmetrizeSignal(y, symmetryStep):
     s = np.zeros(len(y)/2)
     for idx in range(0, len(s)):
         # (positive field - negative field)/2
-        s[idx] = (y[symmetryStep+idx] - y[symmetryStep-idx])/2
-        #s[idx] = (y[idx] - y[idx+symmetryStep])/2.-(y[0] - y[0+symmetryStep])/2.
+        s[idx] = (y[idx] - y[idx+symmetryStep])/2.-(y[0] - y[0+symmetryStep])/2.
     return s
 
 
 def symmetrizeSignal(y, symmetryStep):
     """
-    Dischard antisymmetric (around center index or around idx) part of a signal by 
-    taking the sum of the signal at x[idx_centre +n] and x[idx_centre +n + symmetry_step].
+    Dischard antisymmetric part of a signal by taking the sum of the signal at
+    x[idx_centre +n] and x[idx_centre +n + symmetry_step].
     
-    Get your corresponding x data as x[0:len(y)/]
+    Get your corresponding x data as x[0:len(y)/2]
     
     Parameters
     ----------
