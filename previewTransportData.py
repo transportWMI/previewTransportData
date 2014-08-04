@@ -264,7 +264,7 @@ class plotWidget(QWidget):
         y = np.array(qwtArrayDoubleToList(curveItem.data().yData()))
 
         # fit using a cosin
-        amplitude, frequency, phase, y0 , yFit= transdat.fitcos(ndarrayToList(x),ndarrayToList(y), fitY0 = True)
+        amplitude, frequency, phase, y0 , yFit= transdat.fitcos(ndarrayToList(np.deg2rad(x)),ndarrayToList(y), fitY0 = True)
     
         fitCurve = make.curve(ndarrayToList(x),ndarrayToList(yFit),
                               color='r',
@@ -275,10 +275,10 @@ class plotWidget(QWidget):
         l.info(u"cos fit: amplitude %.3e, frequency %.3e, phase %.3e, offset y0 %.3e"%(amplitude, frequency, phase, y0))
         label = make.label( """<i>cos()-fit (%s)</i><br/>
             amplitude %.3e<br/>
-            frequency %.3e<br/>
-            phase %.3e<br/>
+            period %.3e°<br/>
+            phase %.3e°<br/>
             offset y0 %.3e
-            """%(curveItem.title().text(), amplitude, frequency, phase, y0), 
+            """%(curveItem.title().text(), amplitude, np.rad2deg(2*np.pi/frequency), np.rad2deg(phase), y0), 
             (curveItem.boundingRect().left(), curveItem.boundingRect().top()),(0.1,0.1),
             "BL",
             title = "cos() fit for %s"%curveItem.title().text())
@@ -302,7 +302,7 @@ class plotWidget(QWidget):
         y = np.array(qwtArrayDoubleToList(curveItem.data().yData()))
 
         # fit using a cosin
-        amplitude, frequency, phase, y0 , yFit= transdat.fitcos_squared(ndarrayToList(x),ndarrayToList(y), fitY0 = True)
+        amplitude, frequency, phase, y0 , yFit= transdat.fitcos_squared(ndarrayToList(np.deg2rad(x)),ndarrayToList(y), fitY0 = True)
     
         self.plot.add_item(make.curve(ndarrayToList(x),ndarrayToList(yFit),
                                       color='r', 
@@ -310,10 +310,10 @@ class plotWidget(QWidget):
                                       
         label = make.label( """<i>cos²()-fit (%s)</i><br/>
             amplitude %.3e<br/>
-            \'frequency\' %.3e<br/>
-            \'phase\' %.3e<br/>
+            frequency %.3e°<br/>
+            phase %.3e°<br/>
             offset y0 %.3e
-            """%(curveItem.title().text(), amplitude, frequency, phase, y0), 
+            """%(curveItem.title().text(), amplitude, np.rad2deg(2*np.pi/frequency), np.rad2deg(phase), y0), 
             (curveItem.boundingRect().left(), curveItem.boundingRect().top()),(0.1,0.1),
             "BL",
             title = "cos²() fit for %s"%curveItem.title().text())

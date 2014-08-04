@@ -366,7 +366,7 @@ def preprocessTransportData(field, angle, U, I = None, fields = None, n_angle_po
     
 def fitcos(x, y, fitY0 = False, guess = None):
     """
-    Fit a cosin to the date in x and y.
+    Fit a cosin to the date in x and y. x is expected to be in rad
     """
     def cos(x, amplitude, frequency, phase):
         return amplitude * np.cos(frequency * x + phase)   
@@ -382,7 +382,7 @@ def fitcos(x, y, fitY0 = False, guess = None):
         freqs = fftpack.rfftfreq(np.size(x), d = (x[0]-x[1])/(2*np.pi))
         frequency0 = freqs[idx]
         if frequency0 == np.Inf or frequency0 == 0:
-            frequency0 = 0.001
+            frequency0 = 1
         # maximum to find guess for amplitude
         amplitude0 = np.abs(max(y)-min(y))/2
         y00 = (max(y)-min(y))/2+min(y)
@@ -423,15 +423,8 @@ def fitcos_squared(x, y, fitY0 = False, guess = None):
     x = np.array(x)
     y = np.array(y)    
     if not guess:       
-        # fourier transform to find guess value for frequency
-        yhat = fftpack.rfft(y)
-        idx = (yhat**2).argmax()
-        freqs = fftpack.rfftfreq(np.size(x), d = (x[0]-x[1])/(2*np.pi))
-        frequency0 = freqs[idx]*2
-        if frequency0 == np.Inf or frequency0 == 0:
-            frequency0 = 0.01
-        # maximum to find guess for amplitude
-        amplitude0 = np.abs(max(y)-min(y))/2
+        frequency0 = 1
+        amplitude0 = np.sqrt(np.abs(max(y)-min(y))/2)
         y00 = (max(y)-min(y))/2+min(y)
         phase0 = 0.
     else:
