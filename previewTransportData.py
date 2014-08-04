@@ -39,6 +39,17 @@ def ndarrayToList(array):
         x.append(array[i])
     return x
     
+    
+
+#class FitInfo(ObjectInfo):
+#    def __init__(self, params):
+#        self.params = params
+#
+#    def get_text(self):
+#        
+#        return txt
+        
+    
 class plotWidget(QWidget):
     """
     Creates a widget to display and process data.
@@ -116,26 +127,11 @@ class plotWidget(QWidget):
         self.lineEditSymmStep.setValidator(QDoubleValidator())
         self.lineEditSymmStep.setEnabled(False)
         
-        # Fitting
-        self.buttonFit = QPushButton(u"Fit")
-        self.comboBoxFit = QComboBox()
-        self.comboBoxFit.setMinimumWidth(200)
-        self.comboBoxFit.addItem(u"cos()")
-        self.comboBoxFit.addItem(u"cos²()")
-        
-        self.buttonResidual = QPushButton(u"Calculate Residual")
-        
-        self.buttonAutoscale = QPushButton(u"Autoscale")
-        
-        # Connect SIGNALs
-        self.connect(self.buttonFit, SIGNAL('clicked()'), self.dispatchFit)
-        self.connect(self.buttonResidual, SIGNAL('clicked()'), self.calculateResidual)
-        self.connect(self.buttonAutoscale, SIGNAL('clicked()'), self.plot.do_autoscale)              
+        # Connect SIGNALs           
         self.connect(self.comboBoxOffset, SIGNAL('stateChanged(int)'), self.uiOffset)
         self.connect(self.checkBoxAdmrData, SIGNAL('stateChanged(int)'), self.uiSymmetrization)
         self.connect(self.comboBoxSymmetrize, SIGNAL('currentIndexChanged(QString)'), self.uiSymmetrization)
 
-        ## layout        
         # Processing
         vLayoutData  = QVBoxLayout()
     
@@ -161,22 +157,18 @@ class plotWidget(QWidget):
 
         groupDataProcess = QGroupBox("Processing")
         groupDataProcess.setLayout(vLayoutData)
-
-        # Data fitting
-        hlayout3 = QHBoxLayout()
-        hlayout3.addStretch(1)
-        hlayout3.addWidget(self.comboBoxFit)
-        hlayout3.addWidget(self.buttonFit)
-        hlayout3.addWidget(self.buttonResidual)
-        hlayout3.addWidget(self.buttonAutoscale)
         
-        groupDataFit = QGroupBox("Fitting and Plotting")
-        groupDataFit.setLayout(hlayout3)
+        #  Additional tools in toolbar
+        toolbar = self.curveDialog.get_toolbar()
+        toolbar.addAction("cos", self.fitCos)        
+        toolbar.addAction(u"cos²", self.fitCosSq) 
+        toolbar.addAction("residual", self.calculateResidual)
+        toolbar.addSeparator()
+        toolbar.addAction("autoscale", self.plot.do_autoscale)      
         
         #  Putting it all together
         vlayout = QVBoxLayout()
         vlayout.addWidget(groupDataProcess)
-        vlayout.addWidget(groupDataFit)
         vlayout.addWidget(self.curveDialog)
         self.setLayout(vlayout)
             
@@ -256,32 +248,16 @@ class plotWidget(QWidget):
         self.plot.replot()
        
 
-    # %% Fitting routines    
-    def dispatchFit(self):
+    # %% Fitting routines                            
+    def fitCos(self):
+        """ 
+        Fit a cosin^2 to the currently selected curve and plot the resulting fit function
         """
-        Choose correct fit routine according to comboBoxFit.currentIndex() and 
-        execute the appropriate function.
-        """
-        # list of available fit routines
         if len(self.plot.get_selected_items()) == 0:
             l.warn("No curve selected to fit.")
             return False
-            
-        if self.comboBoxFit.currentIndex() == 0:
-            self.fitCos(self.plot.get_selected_items()[0])
-        elif self.comboBoxFit.currentIndex() == 1:
-            self.fitCosSq(self.plot.get_selected_items()[0])
-                        
-    def fitCos(self, curveItem):
-        """ 
-        Fit a cosin to the curve stored in curveItem and plot
         
-        FIXME: qwtdata comes with quite nice fitting tools. use them instead of tayloring your own stuff again...
-        Parameters
-        -----------
-        curveItem : guiqwt.curve.CurveItem 
-            retrieve e.g. w/ win.widget.plot.get_selected_items()[0]
-        """
+        curveItem = self.plot.get_selected_items()[0]
         # get data from curve (this is actually "built-in method x of QwtArrayData object")
         # and does not have iterators implemented
         x = np.array(qwtArrayDoubleToList(curveItem.data().xData()))
@@ -290,23 +266,60 @@ class plotWidget(QWidget):
         # fit using a cosin
         amplitude, frequency, phase, y0 , yFit= transdat.fitcos(ndarrayToList(x),ndarrayToList(y), fitY0 = True)
     
-        self.plot.add_item(make.curve(ndarrayToList(x),ndarrayToList(yFit),color='r'))
-        self.plot.replot()
+        fitCurve = make.curve(ndarrayToList(x),ndarrayToList(yFit),
+                              color='r',
+                              title="cosfit(%s)"%curveItem.title().text())
+        fitCurve.select()
+        self.plot.add_item(fitCurve)
+
         l.info(u"cos fit: amplitude %.3e, frequency %.3e, phase %.3e, offset y0 %.3e"%(amplitude, frequency, phase, y0))
+        label = make.label( """<i>cos()-fit (%s)</i><br/>
+            amplitude %.3e<br/>
+            frequency %.3e<br/>
+            phase %.3e<br/>
+            offset y0 %.3e
+            """%(curveItem.title().text(), amplitude, frequency, phase, y0), 
+            (curveItem.boundingRect().left(), curveItem.boundingRect().top()),(0.1,0.1),
+            "BL",
+            title = "cos() fit for %s"%curveItem.title().text())
+        self.plot.add_item(label)
+        self.plot.replot()
+        self.plot.do_autoscale()
+        
         
 
-    def fitCosSq(self, curveItem):
-        """ Untested. Probably not working yet """
+    def fitCosSq(self):
+        """ 
+        Fit a cosin to the currently selected curve and plot the resulting fit function
+        """
+        if len(self.plot.get_selected_items()) == 0:
+            l.warn("No curve selected to fit.")
+            return False
+        
+        curveItem = self.plot.get_selected_items()[0]
+
         x = np.array(qwtArrayDoubleToList(curveItem.data().xData()))
         y = np.array(qwtArrayDoubleToList(curveItem.data().yData()))
 
         # fit using a cosin
         amplitude, frequency, phase, y0 , yFit= transdat.fitcos_squared(ndarrayToList(x),ndarrayToList(y), fitY0 = True)
     
-        self.plot.add_item(make.curve(ndarrayToList(x),ndarrayToList(yFit),color='r'))
+        self.plot.add_item(make.curve(ndarrayToList(x),ndarrayToList(yFit),
+                                      color='r', 
+                                      title="cos²fit(%s)"%curveItem.title().text()))
+                                      
+        label = make.label( """<i>cos²()-fit (%s)</i><br/>
+            amplitude %.3e<br/>
+            \'frequency\' %.3e<br/>
+            \'phase\' %.3e<br/>
+            offset y0 %.3e
+            """%(curveItem.title().text(), amplitude, frequency, phase, y0), 
+            (curveItem.boundingRect().left(), curveItem.boundingRect().top()),(0.1,0.1),
+            "BL",
+            title = "cos²() fit for %s"%curveItem.title().text())
+        self.plot.add_item(label)
         self.plot.replot()
-        l.info(u"cos² fit: amplitude %.3e, frequency %.3e, phase %.3e, offset y0 %.3e"%(amplitude, frequency, phase, y0))
-
+        self.plot.do_autoscale()
 
 
         
@@ -547,7 +560,7 @@ def previewTransportData():
     _app = guidata.qapplication()
     # --
     win = previewTransportDataWindow()
-
+    
     win.show()
     _app.exec_()    
 
