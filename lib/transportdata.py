@@ -34,15 +34,18 @@ def symmetrizeSignalZero(y, idx = None):
         numpy array of dimension size(y)/2 of the symmetrized data
     """
     y = np.array(y)
-    if not np.size(y)%2:
+    if not np.size(y)%2 and idx == None:
         raise Exception("Data needs to have an uneven number of elements if no center index (idx) is provided")
     if not idx:
         idx = np.size(y)/2
+        idx_start = 0
         idx_end = np.size(y)
     else:
-        idx_end = min((np.size(y), idx*2))
+        idx_end = min((np.size(y), idx*2+1))
+        idx_start = max(0, idx-(idx_end - idx)+1)
         
-    y = (y[0:idx] + y[idx+1:idx_end][::-1])/2
+    l.debug("startidx: %f, endidx: %f"%(idx_start,idx_end))
+    y = (y[idx_start:idx] + y[idx+1:idx_end][::-1])/2
     return y
 
 
@@ -64,15 +67,19 @@ def antiSymmetrizeSignalZero(y, idx = None):
         numpy array of dimension size(y)/2 of the antisymmetrized data
     """
     y = np.array(y)
-    if not np.size(y)%2:
+    if not np.size(y)%2 and idx == None:
         raise Exception("Data needs to have an uneven number of elements if no center index (idx) is provided")
     if not idx:
         idx = np.size(y)/2
         idx_end = np.size(y)
+        idx_start = 0
     else:
-        idx_end = min((np.size(y), idx*2))
+        idx_end = min((np.size(y), idx*2+1))
+        idx_start = max(0, idx-(idx_end - idx)+1)
+
+    l.debug("startidx: %f, endidx: %f"%(idx_start,idx_end))
         
-    y = (y[0:idx] - y[idx+1:idx_end][::-1])/2
+    y = (y[idx_start:idx] - y[idx+1:idx_end][::-1])/2
     return y
     
     

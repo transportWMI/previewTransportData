@@ -59,7 +59,14 @@ class plotWidget(QWidget):
         self.symmStep = None
         self.x = None
         self.y = None
-        self.listOfDataObjects = []
+        self.dataObjects = []   # holds the data and processing flags for each
+                                # curve in the session needs to be held in sync
+                                # with the plot list
+        self.currentDataObject  = None # currently selected or plotted data object
+        
+        
+        self.tdmsFiles = []     # holds all tdms files loaded in this session
+        self.currentTdmsFile = None
         
         ## Initialize plot widget
         self.curveDialog = CurveDialog(edit=False,toolbar=True)
@@ -106,7 +113,7 @@ class plotWidget(QWidget):
         self.labelSymmStep.setEnabled(False)
         self.lineEditSymmStep = QLineEdit() 
         self.lineEditSymmStep.setMaximumWidth(150)
-        self.lineEditSymmStep.setValidator(QIntValidator())
+        self.lineEditSymmStep.setValidator(QDoubleValidator())
         self.lineEditSymmStep.setEnabled(False)
         
         # Fitting
@@ -187,7 +194,7 @@ class plotWidget(QWidget):
             if self.checkBoxAdmrData.checkState():
                 self.labelSymmStep.setText("Symmetry step [in units of data points]")
             else:
-                self.labelSymmStep.setText("Center of symmetrization [data point index]")
+                self.labelSymmStep.setText("Center of symmetrization [in units of x]")
         else:
             self.checkBoxAdmrData.setEnabled(False)
             self.labelSymmStep.setEnabled(False)
@@ -210,16 +217,16 @@ class plotWidget(QWidget):
         """
         Processes the data of the current data object and appends them to the plot window
         """
-        currentDataObject = self.listOfDataObjects.pop()
+        currentDataObject = self.dataObjects.pop()
         currentDataObject.processData(self.comboBoxDeltaMethod.currentIndex(),
                                       self.checkBoxAverage.isChecked(),self.comboBoxNorm.currentIndex(),
                                       self.comboBoxOffset.currentIndex(),(self.lineEditOffset.text().toDouble())[0],
                                       self.comboBoxSymmetrize.currentIndex(),self.checkBoxAdmrData.isChecked(),
-                                      (self.lineEditSymmStep.text().toInt())[0])
+                                      (self.lineEditSymmStep.text().toDouble())[0])
         x = currentDataObject.xCalc
         y = currentDataObject.yCalc
         
-        self.listOfDataObjects.append(currentDataObject)        
+        self.dataObjects.append(currentDataObject)        
         self.plot.add_item(make.curve(x,y,color='b',marker='Ellipse', markerfacecolor='b', title = currentDataObject.label))
         self.plot.do_autoscale()
         
@@ -233,7 +240,7 @@ class plotWidget(QWidget):
         x: np.array contains the data used for the x-axis
         y: np.array contains the data used for the y-axis        
         """
-        self.listOfDataObjects.append(DataObject(x,y, label = label))
+        self.dataObjects.append(DataObject(x,y, label = label))
         self.processAndPlotData()
 
 
@@ -322,7 +329,7 @@ class previewTransportDataWindow(QWidget):
         #Initialize Layout    
         layout = QGridLayout()
         self.setLayout(layout)
-        self.fileTextWindow = QLineEdit()
+        self.comboBoxFile = QComboBox()
         self.groupBox = QComboBox()
         self.groupBox.setMinimumWidth(200)        
         self.groupBox.addItem("Data group")
@@ -354,7 +361,7 @@ class previewTransportDataWindow(QWidget):
         self.connect(self.buttonPlot, SIGNAL('clicked()'), self.plot)
         
         # Build Layout
-        layout.addWidget(self.fileTextWindow,0,0,1,5)
+        layout.addWidget(self.comboBoxFile,0,0,1,5)
         layout.addWidget(buttonFile,0,5)
         layout.addWidget(self.groupBox,1,0)
         layout.addWidget(self.fieldChannelBox,1,1)
@@ -376,50 +383,93 @@ class previewTransportDataWindow(QWidget):
         
     def readFile(self):
         """
-        Read the .tdms file written in self.fileTextWindow and populates self.groupBox with the groups of the .tdms file.
+        Read TDMS file from QFileDialog and add it to the list of TDMS files 
+        and it's name to self.comboBoxFile
+        Set this Tdms file to be the currently active one afterwards
         """
-        self.fileTextWindow.setText(QFileDialog.getOpenFileName(self,u"Open File","",u"TDMS (*.tdms);;All files (*.*)"))
-        # Read TdmsFile and fill groupBox        
-        self.tdmsFile = nptdms.TdmsFile(self.fileTextWindow.text())
-        self.groupBox.clear()
-        self.groupList = []
-        for group in self.tdmsFile.groups():
-            if group.startswith("Read."):
-                self.groupBox.addItem(group)
-                self.groupList.append(group)
-        self.groupBox.setEnabled(1)
-        # Fill channel boxes when group box is activated
-        self.groupBox.activated['QString'].connect(self.fillChannelBoxes)       
+        filename = QFileDialog.getOpenFileName(self,u"Open File","",u"TDMS (*.tdms);;All files (*.*)")
+        self.comboBoxFile.addItem(filename)
+        self.widget.tdmsFiles.append(nptdms.TdmsFile(filename))
 
-
-    def fillChannelBoxes(self,index):
-        """
-        Populate self.xChannelBox and self.yChannelBox with the channels of the selected group
-        If possible, uses the channels selected the previous time.
-        """
-        self.channelList = self.tdmsFile.group_channels(self.groupList[self.groupBox.currentIndex()])
+        self.comboBoxFile.setCurrentIndex(self.comboBoxFile.count()-1)
         
-        # Store currently selected channels
-        selectedFieldChannel = self.fieldChannelBox.currentIndex()
-        selectedXChannel = self.xChannelBox.currentIndex()
-        selectedYChannel = self.yChannelBox.currentIndex()    
+        if self.comboBoxFile.count() == 1:
+            self.setCurrentTdmsFile(0)
+            self.comboBoxFile.currentIndexChanged['int'].connect(self.setCurrentTdmsFile)
 
-        # Empty channelBox      
+
+    def setCurrentTdmsFile(self,index):
+        """
+        Set the Tdms file in self.widget.tdmsFiles at the specified index to be
+        the currently used one and fill group and channel boxes appropriately)
+        """
+        l.debug("Setting current TDMS file to id %d of %d"%(index, len(self.widget.tdmsFiles)))
+        self.widget.currentTdmsFile = self.widget.tdmsFiles[index]
+        self.fillGroupBox(0)
+
+        
+    def resetChannelBoxes(self):
+        """
+        Clear channel combo boxes
+        """        
         self.fieldChannelBox.clear()
         self.fieldChannelBox.addItem("No multiple fields in file")
         self.xChannelBox.clear()
         self.yChannelBox.clear()
         
+        
+    def fillGroupBox(self,index):
+        """
+        Fill comboBoxGroup with groups of the currently used TDMS file
+        that contain "Read." in their name
+        
+        Parameters
+        ----------
+        index: int
+            unused, for compatibility with signals
+        """
+        selectedGroupChannel = self.groupBox.currentIndex()
+
+        self.groupBox.clear()
+        for group in self.widget.currentTdmsFile.groups():
+            if group.startswith("Read."):
+                self.groupBox.addItem(group)
+        self.groupBox.setEnabled(1)
+        l.debug("Filled group combo box with %d groups from %s"%(self.groupBox.count(),str(self.widget.currentTdmsFile.groups())))
+        
+        # recall selected group
+        self.groupBox.setCurrentIndex(selectedGroupChannel)
+        self.fillChannelBoxes(0)
+
+        # Fill channel boxes when user changes group
+        self.groupBox.activated['int'].connect(self.fillChannelBoxes)       
+
+        
+    def fillChannelBoxes(self,index):
+        """
+        Populate self.xChannelBox and self.yChannelBox with the channels of the selected group
+        If possible, uses the channels selected the previous time.
+        
+        Parameters
+        ----------
+        index: int
+            unused, for compatibility with signals
+        """
+        self.channelList = self.widget.currentTdmsFile.group_channels(str(self.groupBox.currentText()))
+        
+        # Store currently selected channels
+        selectedFieldChannel = self.fieldChannelBox.currentIndex()
+        selectedField = self.fieldBox.currentIndex()
+        selectedXChannel = self.xChannelBox.currentIndex()
+        selectedYChannel = self.yChannelBox.currentIndex()    
+
+        self.resetChannelBoxes()
+
         # Fill with new channels                
         for channel in self.channelList:
             self.fieldChannelBox.addItem(re.search(r"'/'(.+)'",channel.path).group(1))
             self.xChannelBox.addItem(re.search(r"'/'(.+)'",channel.path).group(1))
             self.yChannelBox.addItem(re.search(r"'/'(.+)'",channel.path).group(1))
-
-        # Recall selected channels
-        self.fieldChannelBox.setCurrentIndex(selectedFieldChannel)
-        self.xChannelBox.setCurrentIndex(selectedXChannel)
-        self.yChannelBox.setCurrentIndex(selectedYChannel)
 
         # Enable boxes
         self.fieldChannelBox.setEnabled(1)
@@ -428,14 +478,27 @@ class previewTransportDataWindow(QWidget):
         self.buttonPlot.setEnabled(1)
         
         # Recalculate available fields when changing the field channel         
-        self.fieldChannelBox.activated['QString'].connect(self.fillFieldBox)
-     
+        self.fieldChannelBox.activated['int'].connect(self.fillFieldBox)
+        self.fillFieldBox(self.fieldChannelBox.currentIndex())
+        
+        # Recall selected channels
+        self.fieldChannelBox.setCurrentIndex(selectedFieldChannel)
+        self.fieldBox.setCurrentIndex(selectedField)
+        self.xChannelBox.setCurrentIndex(selectedXChannel)
+        self.yChannelBox.setCurrentIndex(selectedYChannel)
+
      
     def fillFieldBox(self,index):
         """
         Populate field combo box with unique fields from channel selected in
         self.fieldChannelBox
         """
+        # "No multiple fields" selected
+        if index == 0:
+            self.fieldBox.clear()
+            self.fieldBox.setDisabled(1)
+            return
+
         # Get unique fields and sort by index (thus by order of measurement)
         fields, uniqueFieldStartIdx = np.unique(self.channelList[self.fieldChannelBox.currentIndex()-1].data, return_index=True)
         fields = fields[np.argsort(uniqueFieldStartIdx)]

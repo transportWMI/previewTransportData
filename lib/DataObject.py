@@ -79,7 +79,7 @@ class DataObject():
         flagADMR : boolean
             False   -> R(H) data (default)
             True    -> ADMR data
-        valueSymmetrize : int
+        valueSymmetrize : double
             value of the symmetry step (ADMR) or center for symmetrization (R(H)) (default = 0)
         """
         x = self.x
@@ -137,26 +137,32 @@ class DataObject():
             # subtract valueOffset
             for i in range(len(y)):
                 y[i] = y[i] - valueOffset
-        if 0 == switchSymmetrize:
-            pass
-        elif 1 == switchSymmetrize:
-            if flagADMR:
-                # symmetrize admr data around symmetry step
+                
+        if switchSymmetrize and flagADMR and not flagAverage:
+            #admr data
+            if 1 == switchSymmetrize: # symmetrize
                 y = transdat.symmetrizeSignalUpDown(y,valueSymmetrize)
                 x = x[0:len(y)]
-            else:
-                # symmetrize r(h) data around center
-                y = transdat.symmetrizeSignal(y,valueSymmetrize)
-                x = x[0:len(y)][::-1]
-                #x = x[valueSymmetrize:len(y)+valueSymmetrize]
-        elif 2 == switchSymmetrize:
-            if flagADMR:
-                #antisymmetrize admr data around symmetry step
+            elif 2 == switchSymmetrize: #antisymmetrize
                 y = transdat.antiSymmetrizeSignalUpDown(y,valueSymmetrize)
                 x = x[0:len(y)]
-            else:                
-                # symmetrize r(h) data around center
+        elif switchSymmetrize and  flagADMR and flagAverage:
+            if 1 == switchSymmetrize: # symmetrize
+                y = transdat.symmetrizeSignal(y,valueSymmetrize)
+                x = x[0:len(y)]
+            elif 2 == switchSymmetrize: #antisymmetrize
                 y = transdat.antiSymmetrizeSignal(y,valueSymmetrize)
+                x = x[0:len(y)]
+        elif switchSymmetrize and not flagADMR:
+            idx = (np.abs(x-valueSymmetrize)).argmin()
+            l.debug("(Anti-)Symmetrizing data of len %d around index %d (val: %f)"%(len(x),idx, x[idx]))
+            # R(H) data
+            if 1 == switchSymmetrize: # symmetrize
+                y = transdat.symmetrizeSignalZero(y,idx)
+                x = x[0:len(y)][::-1]
+                #x = x[valueSymmetrize:len(y)+valueSymmetrize]
+            elif 2 == switchSymmetrize: # symmetrize
+                y = transdat.antiSymmetrizeSignalZero(y,idx)
                 x = x[0:len(y)][::-1]
                 #x = x[valueSymmetrize:len(y)+valueSymmetrize]
         
