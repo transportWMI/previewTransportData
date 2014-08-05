@@ -79,6 +79,9 @@ class plotWidget(QWidget):
         self.tdmsFiles = []     # holds all tdms files loaded in this session
         self.currentTdmsFile = None
         
+        self.dataObjectTdmsFile  = [] # relates tdmsFiles to dataObjects 
+        self.curveItemDataObject = []  # relates curveItems to dataObjects
+        
         ## Initialize plot widget
         self.curveDialog = CurveDialog(edit=False,toolbar=True)
         self.curveDialog.get_itemlist_panel().show()
@@ -167,7 +170,7 @@ class plotWidget(QWidget):
         toolbar.addSeparator()
         toolbar.addAction("autoscale", self.plot.do_autoscale)      
         toolbar.addSeparator()
-        toolbar.addAction("csv", self.export_csv).setDisabled(1)      
+        toolbar.addAction("ascii", self.export_ascii).setDisabled(0)      
         toolbar.addAction("code", self.export_objects).setDisabled(1)
         #  Putting it all together
         vlayout = QVBoxLayout()
@@ -175,8 +178,29 @@ class plotWidget(QWidget):
         vlayout.addWidget(self.curveDialog)
         self.setLayout(vlayout)
             
-    def export_csv(self):
-        return
+    def export_ascii(self):
+        """
+        Save the (one) currently selected curve as ascii
+        """
+        try:
+            dataObject  = [v[1] for i, v in enumerate(self.curveItemDataObject) if v[0] == self.plot.get_selected_items()[0]][0]
+        except:
+            l.error("Could not find a data object to the currently selected curve. Maybe there's no curve selected?")
+            return
+                
+        #FIXME: this is just a reference for how to get the tdms file index belonging to a curve item. use to reset ui to same settings
+        #tdmsFileIdx = [i for i, v in enumerate(self.dataObjectTdmsFile) if v[0] == dataObject][0]
+        #tdmsFileName = self.parent().comboBoxFile.itemText(tdmsFileIdx)
+        
+        fd = QFileDialog()
+        fd.setDefaultSuffix(".dat")
+        fd.setAcceptMode(QFileDialog.AcceptSave)
+        fname = fd.getSaveFileName(self,u"Choose file to save","%s-%s-%s.dat"%(dataObject.path,dataObject.group,dataObject.yChannel),u"ASCII data file (*.dat);;All files (*.*)")
+        
+        dataObject.saveASCII(fname)
+
+
+        
     def export_objects(self):
         return
             
@@ -233,8 +257,12 @@ class plotWidget(QWidget):
         l.debug(str(currentDataObject))
         
         self.dataObjects.append(currentDataObject)        
-        self.plot.add_item(make.curve(x,y,color='b',marker='Ellipse', markerfacecolor='b', title = currentDataObject.label))
+        curve = make.curve(x,y,color='b',marker='Ellipse', markerfacecolor='b', title = currentDataObject.label)
+        self.plot.add_item(curve)
         self.plot.do_autoscale()
+        curve.select()
+        
+        self.curveItemDataObject.append((curve, currentDataObject))
         
         
     def newData(self,x,y, label = None):
@@ -246,14 +274,17 @@ class plotWidget(QWidget):
         x: np.array contains the data used for the x-axis
         y: np.array contains the data used for the y-axis        
         """
-        self.dataObjects.append(DataObject(x,y, 
-                                           label = label,
-                                           path=self.parent().comboBoxFile.currentText(),
-                                           group = self.parent().groupBox.currentText(),
-                                           paramChannel = self.parent().fieldChannelBox.currentText(),
-                                           param = self.parent().fieldBox.currentText(),
-                                           xChannel = self.parent().xChannelBox.currentText(),
-                                           yChannel = self.parent().yChannelBox.currentText()))
+        dataObject = DataObject(x,y, 
+                               label = label,
+                               path=self.parent().comboBoxFile.currentText(),
+                               group = self.parent().groupBox.currentText(),
+                               paramChannel = self.parent().fieldChannelBox.currentText(),
+                               param = self.parent().fieldBox.currentText(),
+                               xChannel = self.parent().xChannelBox.currentText(),
+                               yChannel = self.parent().yChannelBox.currentText())
+        self.dataObjects.append(dataObject)
+        self.dataObjectTdmsFile.append((dataObject, self.currentTdmsFile))
+
         self.processAndPlotData()
 
 
@@ -421,7 +452,7 @@ class previewTransportDataWindow(QWidget):
         and it's name to self.comboBoxFile
         Set this Tdms file to be the currently active one afterwards
         """
-        filename = QFileDialog.getOpenFileName(self,u"Open File","",u"TDMS (*.tdms);;All files (*.*)")
+        filename = QFileDialog.getOpenFileName(self,u"Open file","",u"TDMS (*.tdms);;All files (*.*)")
         self.comboBoxFile.addItem(filename)
         self.widget.tdmsFiles.append(nptdms.TdmsFile(filename))
 

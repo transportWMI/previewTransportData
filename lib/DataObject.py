@@ -59,12 +59,11 @@ class DataObject():
 
     def __str__(self):
         return """Data Object "%s" for data in file '%s'
-        Group: '%s'
-        Parametrized according to '%s' (selected '%s')
-          xChannel: '%s' (%d long)
-          yChannel: '%s' (%d long)
-          #Operations: %d
-        """%(self.label, self.path, self.group, self.paramChannel, self.param, self.xChannel, len(self.x), self.yChannel, len(self.y), len(self.operations))        
+    Group: '%s'
+    Parametrized according to '%s' (selected '%s')
+    xChannel: '%s' (%d long)
+    yChannel: '%s' (%d long)
+    #Operations: %d"""%(self.label, self.path, self.group, self.paramChannel, self.param, self.xChannel, len(self.x), self.yChannel, len(self.y), len(self.operations))        
         
     def _deltaMethod(self, method):
         """
@@ -311,3 +310,15 @@ class DataObject():
             operation(**self.operationParameters[idx])
             
         return self.xCalc, self.yCalc
+        
+    def operationsToString(self):
+        opString = ""
+        for idx, operation in enumerate(self.operations):
+            opString += str(operation.__name__) + ":\n"
+            opString += "   %s"%(self.operationParameters[idx])
+        return opString
+            
+    def saveASCII(self, fname):
+        header = str(self) + self.operationsToString()
+        np.savetxt(fname, np.transpose((self.xCalc, self.yCalc)), header = header)
+        
