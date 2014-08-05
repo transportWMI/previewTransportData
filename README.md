@@ -1,6 +1,8 @@
 # previewTransportData
 
-Small python tool to read and preprocess transport measurement data. This will allow to have a quick look at TMDS measurement data without the need to hack with origin.
+Small python tool to read and preprocess measurement data and have a quick glance if everything's fine. Work you spend with the tool is not lost because of its export capabilities. It's taylored to support you particularly with transport measurements (ADMR, R(H)), but has already proven to be useful for FMR data for example.
+
+Its open source (MIT license), free (as in free beer) and standing on the shoulders of Python, numpy and guiqwt. Use and contribute.
 
 ## Conventions
 … (few, the (anti-)symmetrization convention might change and is still to be properly documented in doc/symmetrization.md))
@@ -8,7 +10,7 @@ Small python tool to read and preprocess transport measurement data. This will a
 … (many. also, the programm is still under heavy development and produces quite some debugging output to the console)
 ## Requirements 
 … (quite some. python(x,y) and using spyder is a good way to start. a packed executable without dependencies will follow for windows)
-
+**Please report issues you come across at https://github.com/transportWMI/previewTransportData/issues!**
 
 ## Features
 
@@ -76,11 +78,13 @@ Only the first method is implemented as of 2014-08-05. Guiqwt comes with export 
 
 
 ## Roadmap
-  
+
+  + Move roadmap to github issues https://github.com/transportWMI/previewTransportData/issues  
   + <s>Show fit results in graph display as annotation</s>
   + Recover which data processing operations have been applied for which curve (groundworks layed, just an interface thing)
   + <s>Decouple Data object further and make it truely reusable</s> well under way
   + Add automatic color rotation to data
-  + Clean up code and write more extensive, high level code documentation
+  + Improve automatic labeling of data
+  + Clean up code (remove bloat...) and write more extensive, high level code documentation
   + Write down and graphically depict (anti-)symmetrization routine in doc/
   + Generalize "field channel" box to arbitrary parameters (that's just a naming issue. data-object is already prepared )

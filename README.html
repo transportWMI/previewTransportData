@@ -751,12 +751,14 @@ body .task-list{
 </style><title>README</title></head><body><h1>
 <a name="user-content-previewtransportdata" class="anchor" href="#previewtransportdata" aria-hidden="true"><span class="octicon octicon-link"></span></a>previewTransportData</h1>
 
-<p>Small python tool to read and preprocess transport measurement data. This will allow to have a quick look at TMDS measurement data without the need to hack with origin.</p>
+<p>Small python tool to read and preprocess measurement data and have a quick glance if everything's fine. Work you spend with the tool is not lost because of its export capabilities. It's taylored to support you particularly with transport measurements (ADMR, R(H)), but has already proven to be useful for FMR data for example.</p>
+
+<p>Its open source (MIT license), free (as in free beer) and standing on the shoulders of Python, numpy and guiqwt. Use and contribute.</p>
 
 <h2>
 <a name="user-content-conventions" class="anchor" href="#conventions" aria-hidden="true"><span class="octicon octicon-link"></span></a>Conventions</h2>
 
-<p>… (few)</p>
+<p>… (few, the (anti-)symmetrization convention might change and is still to be properly documented in doc/symmetrization.md))</p>
 
 <h2>
 <a name="user-content-limitationsknown-issues" class="anchor" href="#limitationsknown-issues" aria-hidden="true"><span class="octicon octicon-link"></span></a>Limitations/Known issues</h2>
@@ -766,12 +768,20 @@ body .task-list{
 <h2>
 <a name="user-content-requirements" class="anchor" href="#requirements" aria-hidden="true"><span class="octicon octicon-link"></span></a>Requirements</h2>
 
-<p>… (quite some. python(x,y) and using spyder is a good way to start. a packed executable without dependencies will follow for windows)</p>
+<p>… (quite some. python(x,y) and using spyder is a good way to start. a packed executable without dependencies will follow for windows)
+<strong>Please report issues you come across at <a href="https://github.com/transportWMI/previewTransportData/issues">https://github.com/transportWMI/previewTransportData/issues</a>!</strong></p>
 
 <h2>
 <a name="user-content-features" class="anchor" href="#features" aria-hidden="true"><span class="octicon octicon-link"></span></a>Features</h2>
 
-<h3>
+<p>The script allows you to </p>
+
+<ul>
+<li>load data from TDMS files (also undefragmented ones)</li>
+<li>perform multiple data-processing operations (see below)</li>
+<li>compare datasets</li>
+<li>export the prescreened and processed data to ASCII, python-code and vector/bitmap-graphics</li>
+</ul><h3>
 <a name="user-content-viewing-admr-measurements-recorded-w-the-delta-method" class="anchor" href="#viewing-admr-measurements-recorded-w-the-delta-method" aria-hidden="true"><span class="octicon octicon-link"></span></a>Viewing ADMR measurements recorded w/ the delta method</h3>
 
 <p>In this section we will be concerned with quickly opening, viewing and fitting an ADMR measurment file.</p>
@@ -820,21 +830,36 @@ To be able to compare the two contributions, they have been shifted to zero by t
 <a name="user-content-fit-data" class="anchor" href="#fit-data" aria-hidden="true"><span class="octicon octicon-link"></span></a>Fit data</h4>
 
 <p><a href="/home/hannes/Dokumente/Studium/Doktorarbeit/code/previewTransportData/doc/3-fitting.png" target="_blank"><img src="/home/hannes/Dokumente/Studium/Doktorarbeit/code/previewTransportData/doc/3-fitting.png" alt="Annotated overview over fitting tools" style="max-width:100%;"></a>
-Fit data by selecting a curve in the item list <strong>(15)</strong>, selecting the right fit function in the drop down box <strong>(11)</strong> currently, there's only a cosin and a cosin² plot available. Then, click Fit <strong>(12)</strong>. As of now, the parameters of the fit (b) only appear in the python console. 
-To calculate the residual of the fit (or, as a matter of fact the difference between any two curves) select the two curves in the item list <strong>(15)</strong> and click on "Calculate Residual" <strong>(13)</strong></p>
+Fit data by selecting a curve in the item list <strong>(15)</strong> and clicking the appropriate function in the toolbar <strong>(11)</strong>. Currently, there's only a cosin and a cosin² fit available that should, however, be pretty robust for the task of fitting ADMR data. <em>In the example, <strong>(a)</strong> is the data curve, <strong>(b)</strong> the fitted function.</em> The fit parameters will show up in the python console and as info label <strong>(c)</strong> in the plot. You can copy values from the info label by opening the properties thereof.
+To calculate the residual of the fit (or, as a matter of fact the difference between any two curves) select the two curves in the item list <strong>(15)</strong> and click on "Calculate Residual" <strong>(12)</strong></p>
 
 <h4>
 <a name="user-content-export-data-for-further-analysis" class="anchor" href="#export-data-for-further-analysis" aria-hidden="true"><span class="octicon octicon-link"></span></a>Export data for further analysis</h4>
 
-<p>…</p>
+<p>There are two methods planned to further analyse the data: </p>
 
-<h2>
+<ul>
+<li>Export to ascii: By selecting a curve in the curve item list <strong>(15)</strong>, you can export this curves processed data as whitespace spaced ASCII file. Also saved are the filename of the tdms file, the used channel and which processing steps have been taken to get there.</li>
+<li>Export to python code: Export one or multiple DataObjects as python code that loads the data from TDMS and performs the processing steps again upon executing the script. This should be pretty straightforward and the data will be tied to a specific version of the software so you can track changes in the library. The processing library is decoupled of the user interface and is already documented and usable. You can find it under lib/.</li>
+</ul><p>Only the first method is implemented as of 2014-08-05. Guiqwt comes with export filters (buttons in the toolbar) for</p>
+
+<ul>
+<li>PDF</li>
+<li>PNG</li>
+<li>copying the graph as bitmap to the clipboard</li>
+</ul><h2>
 <a name="user-content-roadmap" class="anchor" href="#roadmap" aria-hidden="true"><span class="octicon octicon-link"></span></a>Roadmap</h2>
 
 <ul>
-<li>Show fit results in graph display as annotation</li>
-<li>Recover which data processing operations have been applied for which curve (blocks next item)</li>
-<li>Decouple Data object further and make it truely reusable</li>
+<li>Move roadmap to github issues <a href="https://github.com/transportWMI/previewTransportData/issues">https://github.com/transportWMI/previewTransportData/issues</a><br>
+</li>
+<li><s>Show fit results in graph display as annotation</s></li>
+<li>Recover which data processing operations have been applied for which curve (groundworks layed, just an interface thing)</li>
+<li>
+<s>Decouple Data object further and make it truely reusable</s> well under way</li>
 <li>Add automatic color rotation to data</li>
-<li>Generalize "field channel" box to arbitrary parameters</li>
+<li>Improve automatic labeling of data</li>
+<li>Clean up code (remove bloat...) and write more extensive, high level code documentation</li>
+<li>Write down and graphically depict (anti-)symmetrization routine in doc/</li>
+<li>Generalize "field channel" box to arbitrary parameters (that's just a naming issue. data-object is already prepared )</li>
 </ul></body></html>
