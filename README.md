@@ -3,7 +3,7 @@
 Small python tool to read and preprocess transport measurement data. This will allow to have a quick look at TMDS measurement data without the need to hack with origin.
 
 ## Conventions
-… (few)
+… (few, the (anti-)symmetrization convention might change and is still to be properly documented in doc/symmetrization.md))
 ## Limitations/Known issues
 … (many. also, the programm is still under heavy development and produces quite some debugging output to the console)
 ## Requirements 
@@ -11,6 +11,14 @@ Small python tool to read and preprocess transport measurement data. This will a
 
 
 ## Features
+
+The script allows you to 
+
+  + load data from TDMS files (also undefragmented ones)
+  + perform multiple data-processing operations (see below)
+  + compare datasets
+  + export the prescreened and processed data to ASCII, python-code and vector/bitmap-graphics
+
 
 ### Viewing ADMR measurements recorded w/ the delta method
 
@@ -50,17 +58,29 @@ To be able to compare the two contributions, they have been shifted to zero by t
 
 #### Fit data
 ![Annotated overview over fitting tools](doc/3-fitting.png)
-Fit data by selecting a curve in the item list **(15)**, selecting the right fit function in the drop down box **(11)** currently, there's only a cosin and a cosin² plot available. Then, click Fit **(12)**. As of now, the parameters of the fit (b) only appear in the python console. 
-To calculate the residual of the fit (or, as a matter of fact the difference between any two curves) select the two curves in the item list **(15)** and click on "Calculate Residual" **(13)**
+Fit data by selecting a curve in the item list **(15)** and clicking the appropriate function in the toolbar **(11)**. Currently, there's only a cosin and a cosin² fit available that should, however, be pretty robust for the task of fitting ADMR data. *In the example, __(a)__ is the data curve, __(b)__ the fitted function.* The fit parameters will show up in the python console and as info label **(c)** in the plot. You can copy values from the info label by opening the properties thereof.
+To calculate the residual of the fit (or, as a matter of fact the difference between any two curves) select the two curves in the item list **(15)** and click on "Calculate Residual" **(12)**
 
 
 #### Export data for further analysis
-…
+There are two methods planned to further analyse the data: 
+ 
+  + Export to ascii: By selecting a curve in the curve item list **(15)**, you can export this curves processed data as whitespace spaced ASCII file. Also saved are the filename of the tdms file, the used channel and which processing steps have been taken to get there.
+  + Export to python code: Export one or multiple DataObjects as python code that loads the data from TDMS and performs the processing steps again upon executing the script. This should be pretty straightforward and the data will be tied to a specific version of the software so you can track changes in the library. The processing library is decoupled of the user interface and is already documented and usable. You can find it under lib/.
+
+Only the first method is implemented as of 2014-08-05. Guiqwt comes with export filters (buttons in the toolbar) for
+
+  + PDF
+  + PNG
+  + copying the graph as bitmap to the clipboard
+
 
 ## Roadmap
   
-  + Show fit results in graph display as annotation
-  + Recover which data processing operations have been applied for which curve (blocks next item)
-  + Decouple Data object further and make it truely reusable
+  + <s>Show fit results in graph display as annotation</s>
+  + Recover which data processing operations have been applied for which curve (groundworks layed, just an interface thing)
+  + <s>Decouple Data object further and make it truely reusable</s> well under way
   + Add automatic color rotation to data
-  + Generalize "field channel" box to arbitrary parameters
+  + Clean up code and write more extensive, high level code documentation
+  + Write down and graphically depict (anti-)symmetrization routine in doc/
+  + Generalize "field channel" box to arbitrary parameters (that's just a naming issue. data-object is already prepared )
