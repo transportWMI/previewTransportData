@@ -101,6 +101,7 @@ class plotWidget(QWidget):
         self.comboBoxSymmetrize.addItem(u"Symmetrization")
         self.comboBoxSymmetrize.addItem(u"Antisymmetrization")
         self.checkBoxAdmrData = QCheckBox(u"ADMR data")
+        self.checkBoxAdmrData.setDisabled(1)
         self.checkBoxAntiSymmetrize = QCheckBox(u"Antisymmetrize")
         
         self.checkBoxAverage = QCheckBox(u"Average Up-Down-Sweep")
@@ -165,13 +166,19 @@ class plotWidget(QWidget):
         toolbar.addAction("residual", self.calculateResidual)
         toolbar.addSeparator()
         toolbar.addAction("autoscale", self.plot.do_autoscale)      
-        
+        toolbar.addSeparator()
+        toolbar.addAction("csv", self.export_csv).setDisabled(1)      
+        toolbar.addAction("code", self.export_objects).setDisabled(1)
         #  Putting it all together
         vlayout = QVBoxLayout()
         vlayout.addWidget(groupDataProcess)
         vlayout.addWidget(self.curveDialog)
         self.setLayout(vlayout)
             
+    def export_csv(self):
+        return
+    def export_objects(self):
+        return
             
     def uiSymmetrization(self, state):
         """ 
@@ -210,13 +217,20 @@ class plotWidget(QWidget):
         Processes the data of the current data object and appends them to the plot window
         """
         currentDataObject = self.dataObjects.pop()
-        currentDataObject.processData(self.comboBoxDeltaMethod.currentIndex(),
-                                      self.checkBoxAverage.isChecked(),self.comboBoxNorm.currentIndex(),
-                                      self.comboBoxOffset.currentIndex(),(self.lineEditOffset.text().toDouble())[0],
-                                      self.comboBoxSymmetrize.currentIndex(),self.checkBoxAdmrData.isChecked(),
-                                      (self.lineEditSymmStep.text().toDouble())[0])
-        x = currentDataObject.xCalc
-        y = currentDataObject.yCalc
+        
+        # Queue operations
+        currentDataObject.deltaMethod(self.comboBoxDeltaMethod.currentIndex())
+        if self.checkBoxAverage.isChecked():
+            currentDataObject.averageUpDown()
+        if self.checkBoxAdmrData.isChecked():
+            currentDataObject.symmetrize(self.comboBoxSymmetrize.currentIndex(),symm_step = (self.lineEditSymmStep.text().toDouble())[0])
+        else:
+            currentDataObject.symmetrize(self.comboBoxSymmetrize.currentIndex(),symm_center = (self.lineEditSymmStep.text().toDouble())[0])
+        currentDataObject.offsetCorrection(self.comboBoxOffset.currentIndex(), offset = (self.lineEditOffset.text().toDouble())[0])
+        currentDataObject.normalize(self.comboBoxNorm.currentIndex())
+
+        x,y = currentDataObject.processData()
+        l.debug(str(currentDataObject))
         
         self.dataObjects.append(currentDataObject)        
         self.plot.add_item(make.curve(x,y,color='b',marker='Ellipse', markerfacecolor='b', title = currentDataObject.label))
@@ -232,7 +246,14 @@ class plotWidget(QWidget):
         x: np.array contains the data used for the x-axis
         y: np.array contains the data used for the y-axis        
         """
-        self.dataObjects.append(DataObject(x,y, label = label))
+        self.dataObjects.append(DataObject(x,y, 
+                                           label = label,
+                                           path=self.parent().comboBoxFile.currentText(),
+                                           group = self.parent().groupBox.currentText(),
+                                           paramChannel = self.parent().fieldChannelBox.currentText(),
+                                           param = self.parent().fieldBox.currentText(),
+                                           xChannel = self.parent().xChannelBox.currentText(),
+                                           yChannel = self.parent().yChannelBox.currentText()))
         self.processAndPlotData()
 
 
@@ -352,8 +373,8 @@ class previewTransportDataWindow(QWidget):
         self.fieldChannelBox.addItem("Non-Unique Field Channel")
         self.fieldChannelBox.setDisabled(1)
         self.fieldBox = QComboBox()
-        self.fieldBox.setMinimumWidth(50)
-        self.fieldBox.setMaximumWidth(50)
+        self.fieldBox.setMinimumWidth(75)
+        self.fieldBox.setMaximumWidth(75)
         self.fieldBox.addItem("")
         self.fieldBox.setDisabled(1)
         self.xChannelBox = QComboBox()  
@@ -492,7 +513,6 @@ class previewTransportDataWindow(QWidget):
         
         # Recalculate available fields when changing the field channel         
         self.fieldChannelBox.activated['int'].connect(self.fillFieldBox)
-        self.fillFieldBox(self.fieldChannelBox.currentIndex())
         
         # Recall selected channels
         self.fieldChannelBox.setCurrentIndex(selectedFieldChannel)
@@ -500,6 +520,9 @@ class previewTransportDataWindow(QWidget):
         self.xChannelBox.setCurrentIndex(selectedXChannel)
         self.yChannelBox.setCurrentIndex(selectedYChannel)
 
+        # Fill field box once now after previous selected channels are restored
+        self.fillFieldBox(self.fieldChannelBox.currentIndex())
+        
      
     def fillFieldBox(self,index):
         """
