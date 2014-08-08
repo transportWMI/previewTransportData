@@ -13,8 +13,8 @@ from guiqwt.builder import make
 import numpy as np
 import nptdms
 import re
-from DataObject import DataObject
-import transportdata as transdat
+from lib.DataObject import DataObject
+import lib.transportdata as transdat
 
 import logging
 logging.basicConfig()
@@ -197,7 +197,6 @@ class plotWidget(QWidget):
         fd.setAcceptMode(QFileDialog.AcceptSave)
         fname = fd.getSaveFileName(self,u"Choose file to save","%s-%s-%s.dat"%(dataObject.path,dataObject.group,dataObject.yChannel),u"ASCII data file (*.dat);;All files (*.*)")
         
-        dataObject.saveASCII(fname)
 
 
         

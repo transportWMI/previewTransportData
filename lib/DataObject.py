@@ -46,7 +46,7 @@ class DataObject():
         self.yCalc = np.array(y)
         self.label = label
 
-        self.path = path
+        self.path = unicode(path)
         self.group = group
         self.paramChannel = paramChannel
         self.param = param
