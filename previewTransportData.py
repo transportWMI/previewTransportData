@@ -320,7 +320,7 @@ class plotWidget(QWidget):
     
         fitCurve = make.curve(ndarrayToList(x),ndarrayToList(yFit),
                               color='r',
-                              title="cosfit(%s)"%curveItem.title().text())
+                              title=u"cosfit(%s)"%curveItem.title().text())
         fitCurve.select()
         self.plot.add_item(fitCurve)
 
@@ -333,7 +333,7 @@ class plotWidget(QWidget):
             """%(curveItem.title().text(), amplitude, np.rad2deg(2*np.pi/frequency), np.rad2deg(phase), y0), 
             (curveItem.boundingRect().left(), curveItem.boundingRect().top()),(0.1,0.1),
             "BL",
-            title = "cos() fit for %s"%curveItem.title().text())
+            title = u"cos(%s)"%curveItem.title().text())
         self.plot.add_item(label)
         self.plot.replot()
         self.plot.do_autoscale()
@@ -358,9 +358,9 @@ class plotWidget(QWidget):
     
         self.plot.add_item(make.curve(ndarrayToList(x),ndarrayToList(yFit),
                                       color='r', 
-                                      title="cos²fit(%s)"%curveItem.title().text()))
+                                      title=u"cos²fit(%s)"%curveItem.title().text()))
                                       
-        label = make.label( """<i>cos²()-fit (%s)</i><br/>
+        label = make.label(u"""<i>cos²()-fit (%s)</i><br/>
             amplitude %.3e<br/>
             frequency %.3e°<br/>
             phase %.3e°<br/>
@@ -368,7 +368,7 @@ class plotWidget(QWidget):
             """%(curveItem.title().text(), amplitude, np.rad2deg(2*np.pi/frequency), np.rad2deg(phase), y0), 
             (curveItem.boundingRect().left(), curveItem.boundingRect().top()),(0.1,0.1),
             "BL",
-            title = "cos²() fit for %s"%curveItem.title().text())
+            title = u"cos²(%s)"%curveItem.title().text())
         self.plot.add_item(label)
         self.plot.replot()
         self.plot.do_autoscale()
