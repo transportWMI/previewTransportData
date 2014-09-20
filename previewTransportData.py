@@ -4,7 +4,7 @@ Created on Mon Jun 23 10:27:50 2014
 
 @author: hannes.maierflaig
 """
-from guidata.qt.QtGui import QLabel, QDoubleValidator, QIntValidator, QLineEdit, QCheckBox, QVBoxLayout, QMainWindow, QWidget, QComboBox, QGridLayout, QHBoxLayout, QFileDialog, QPushButton, QGroupBox
+from guidata.qt.QtGui import QLabel, QDoubleValidator, QTextEdit, QLineEdit, QCheckBox, QVBoxLayout, QMainWindow, QWidget, QComboBox, QGridLayout, QHBoxLayout, QFileDialog, QPushButton, QGroupBox
 from guidata.qt.QtCore import SIGNAL
 
 from guiqwt.plot import CurveDialog
@@ -39,7 +39,53 @@ def ndarrayToList(array):
         x.append(array[i])
     return x
     
+class curveDialogIgnoreEsc(CurveDialog):
+    """
+    Creates a CurveDialog that ignores the termination via the Esc-key
     
+    Construct a CurveDialog object: plotting dialog box with integrated 
+    plot manager
+        * wintitle: window title
+        * icon: window icon
+        * edit: editable state
+        * toolbar: show/hide toolbar
+        * options: options sent to the :py:class:`guiqwt.curve.CurvePlot` object
+          (dictionary)
+        * parent: parent widget
+        * panels (optional): additionnal panels (list, tuple)
+    --------    
+    """
+    def __init__(self, wintitle="guiqwt plot", icon="guiqwt.svg", edit=False,
+                 toolbar=False, options=None, parent=None, panels=None):
+        CurveDialog.__init__(self, wintitle, icon, edit,
+                 toolbar, options, parent, panels)
+    
+    def closeEvent(self, event):
+        event.ignore()
+        l.error("Close event called - termination intercepted")
+        
+    def done(self,int):
+        l.error("Esc key pressed - termination intercepted")
+    
+class widgetLogger(logging.Handler):
+    """
+    Creates a Handler that writes the logger's output to a QTextEdit.
+    Output is formatted as debuglevel::name::message @ time
+    
+    Parameters
+    ---------
+    statusWidget: QTextEdit Widget where the output of the logger is written to
+    debugLevel: Int DebugLevel of the handler to operate
+    """
+    def __init__(self, statusWidget, debugLevel):
+        logging.Handler.__init__(self)
+        self.setLevel(debugLevel)
+        self.statusWidget = statusWidget
+        self.formatter = logging.Formatter(fmt='%(levelname)s::%(name)s::%(message)s @ %(asctime)s')
+        
+    def emit(self,record):
+        self.statusWidget.append(self.format(record))
+
 
 #class FitInfo(ObjectInfo):
 #    def __init__(self, params):
@@ -74,16 +120,13 @@ class plotWidget(QWidget):
                                 # curve in the session needs to be held in sync
                                 # with the plot list
         self.currentDataObject  = None # currently selected or plotted data object
-        
-        
-        self.tdmsFiles = []     # holds all tdms files loaded in this session
-        self.currentTdmsFile = None
-        
+                
         self.dataObjectTdmsFile  = [] # relates tdmsFiles to dataObjects 
         self.curveItemDataObject = []  # relates curveItems to dataObjects
         
         ## Initialize plot widget
-        self.curveDialog = CurveDialog(edit=False,toolbar=True)
+        self.curveDialog = curveDialogIgnoreEsc(edit=False,toolbar=True)
+        
         self.curveDialog.get_itemlist_panel().show()
               
         self.plot = self.curveDialog.get_plot()
@@ -283,7 +326,7 @@ class plotWidget(QWidget):
                                xChannel = self.parent().xChannelBox.currentText(),
                                yChannel = self.parent().yChannelBox.currentText())
         self.dataObjects.append(dataObject)
-        self.dataObjectTdmsFile.append((dataObject, self.currentTdmsFile))
+        self.dataObjectTdmsFile.append((dataObject, self.parent().currentTdmsFile))
 
         self.processAndPlotData()
 
@@ -395,6 +438,7 @@ class previewTransportDataWindow(QWidget):
         layout = QGridLayout()
         self.setLayout(layout)
         self.comboBoxFile = QComboBox()
+        self.comboBoxFile.setDisabled(1)
         self.groupBox = QComboBox()
         self.groupBox.setMinimumWidth(200)        
         self.groupBox.addItem("Data group")
@@ -420,6 +464,10 @@ class previewTransportDataWindow(QWidget):
         buttonFile.setMaximumWidth(100)
         self.buttonPlot = QPushButton(u"Plot")
         self.buttonPlot.setMaximumWidth(100)
+        self.statusDisplay = QTextEdit()
+        self.statusDisplay.setReadOnly(1)
+        self.statusDisplay.setMinimumHeight(80)
+        self.statusDisplay.setMaximumHeight(80)
         
         # Connect SIGNALs
         self.connect(buttonFile, SIGNAL('clicked()'), self.readFile)
@@ -435,16 +483,25 @@ class previewTransportDataWindow(QWidget):
         layout.addWidget(self.yChannelBox,1,4)
         layout.addWidget(self.buttonPlot,1,5)
         layout.columnStretch(5)
-        
+        layout.addWidget(self.statusDisplay,3,0,1,6)        
         # Initialize store for TDMSfiles
-        self.tdmsFile = None
         self.groupList = []
         self.ChannelList = []
+        
+        self.tdmsFiles = []     # holds all tdms files loaded in this session
+        self.currentTdmsFile = None
                 
         # Initialize plot widget
         self.widget = plotWidget(self)
         self.layout().addWidget(self.widget,2,0,1,6)
         self.buttonPlot.setEnabled(False)
+        
+        # Debuglevel for output in status display
+        self.debugLevel = logging.DEBUG
+        
+        # Initialize Handler to write logging output to statusDisplay
+        self.widgetLogger = widgetLogger(self.statusDisplay,self.debugLevel)
+        l.addHandler(self.widgetLogger)        
         
     def readFile(self):
         """
@@ -453,9 +510,22 @@ class previewTransportDataWindow(QWidget):
         Set this Tdms file to be the currently active one afterwards
         """
         filename = QFileDialog.getOpenFileName(self,u"Open file","",u"TDMS (*.tdms);;All files (*.*)")
+        
+        # Catch abortion of QFileDialog        
+        if "" == filename:
+            l.error(u"No file selected")
+            return
+            
+        # Catch error in opening file  ~ TODO ~ could specify error?
+        try:             
+            self.tdmsFiles.append(nptdms.TdmsFile(filename))
+        except:
+            l.error(u"Error opening file")
+            return
+        
         self.comboBoxFile.addItem(filename)
-        self.widget.tdmsFiles.append(nptdms.TdmsFile(filename))
-
+        self.comboBoxFile.setEnabled(1)           
+        
         self.comboBoxFile.setCurrentIndex(self.comboBoxFile.count()-1)
         
         if self.comboBoxFile.count() == 1:
@@ -465,11 +535,11 @@ class previewTransportDataWindow(QWidget):
 
     def setCurrentTdmsFile(self,index):
         """
-        Set the Tdms file in self.widget.tdmsFiles at the specified index to be
+        Set the Tdms file in self.tdmsFiles at the specified index to be
         the currently used one and fill group and channel boxes appropriately)
         """
-        l.debug("Setting current TDMS file to id %d of %d"%(index, len(self.widget.tdmsFiles)))
-        self.widget.currentTdmsFile = self.widget.tdmsFiles[index]
+        l.debug("Setting current TDMS file to id %d of %d"%(index, len(self.tdmsFiles)))
+        self.currentTdmsFile = self.tdmsFiles[index]
         self.fillGroupBox(0)
 
         
@@ -496,11 +566,11 @@ class previewTransportDataWindow(QWidget):
         selectedGroupChannel = self.groupBox.currentIndex()
 
         self.groupBox.clear()
-        for group in self.widget.currentTdmsFile.groups():
+        for group in self.currentTdmsFile.groups():
             if group.startswith("Read."):
                 self.groupBox.addItem(group)
         self.groupBox.setEnabled(1)
-        l.debug("Filled group combo box with %d groups from %s"%(self.groupBox.count(),str(self.widget.currentTdmsFile.groups())))
+        l.debug("Filled group combo box with %d groups from %s"%(self.groupBox.count(),str(self.currentTdmsFile.groups())))
         
         # recall selected group
         self.groupBox.setCurrentIndex(selectedGroupChannel)
@@ -520,7 +590,7 @@ class previewTransportDataWindow(QWidget):
         index: int
             unused, for compatibility with signals
         """
-        self.channelList = self.widget.currentTdmsFile.group_channels(str(self.groupBox.currentText()))
+        self.channelList = self.currentTdmsFile.group_channels(str(self.groupBox.currentText()))
         
         # Store currently selected channels
         selectedFieldChannel = self.fieldChannelBox.currentIndex()
