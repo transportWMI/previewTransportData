@@ -9,6 +9,7 @@ from guidata.qt.QtCore import SIGNAL
 
 from guiqwt.plot import CurveDialog
 from guiqwt.builder import make
+from guiqwt.signals import SIG_ACTIVE_ITEM_CHANGED
 
 import numpy as np
 import nptdms
@@ -178,7 +179,7 @@ class plotWidget(QWidget):
         self.connect(self.comboBoxOffset, SIGNAL('stateChanged(int)'), self.uiOffset)
         self.connect(self.checkBoxAdmrData, SIGNAL('stateChanged(int)'), self.uiSymmetrization)
         self.connect(self.comboBoxSymmetrize, SIGNAL('currentIndexChanged(QString)'), self.uiSymmetrization)
-
+        self.connect(self.plot, SIG_ACTIVE_ITEM_CHANGED, self.updateGUI)
         # Processing
         vLayoutData  = QVBoxLayout()
     
@@ -220,20 +221,98 @@ class plotWidget(QWidget):
         vlayout.addWidget(groupDataProcess)
         vlayout.addWidget(self.curveDialog)
         self.setLayout(vlayout)
-            
-    def export_ascii(self):
+        
+    def updateGUI(self):
         """
-        Save the (one) currently selected curve as ascii
+        Update the GUI if another curve is activated
+        """
+        dataObject = self.findAssociatedDataObject()
+        if(-1 == dataObject):
+            l.error("GUI could not be updated")
+            return
+        
+        dummyIndex = self.parent().comboBoxFile.findText(dataObject.path)
+        self.parent().setCurrentTdmsFile(dummyIndex)
+        
+        dummyIndex = self.parent().groupBox.findText(dataObject.group)
+        self.parent().groupBox.setCurrentIndex(dummyIndex)
+        self.parent().groupBox.activated.emit(0) #int of SIGNAL is unused, take care if changed!       
+
+        dummyIndex = self.parent().xChannelBox.findText(dataObject.xChannel)
+        self.parent().xChannelBox.setCurrentIndex(dummyIndex)
+
+        dummyIndex = self.parent().yChannelBox.findText(dataObject.yChannel)
+        self.parent().yChannelBox.setCurrentIndex(dummyIndex)
+
+        dummyIndex = self.parent().fieldChannelBox.findText(dataObject.paramChannel)
+        self.parent().fieldChannelBox.setCurrentIndex(dummyIndex)
+        self.parent().fieldChannelBox.activated.emit(dummyIndex) # is called once per previous call (e.g. 1 call after the first reload, 2 calls after second reload etc.)
+
+        dummyIndex = self.parent().fieldBox.findText(dataObject.param)
+        self.parent().fieldBox.setCurrentIndex(dummyIndex)
+        
+        l.debug(dataObject.operationsToString())
+        self.readOperationsFromDataObject(dataObject)
+        
+                               
+    def findAssociatedDataObject(self):
+        """
+        Find data object associated to currently selected curve
         """
         try:
             dataObject  = [v[1] for i, v in enumerate(self.curveItemDataObject) if v[0] == self.plot.get_selected_items()[0]][0]
         except:
-            l.error("Could not find a data object to the currently selected curve. Maybe there's no curve selected?")
-            return
+            l.error("Could not find a data object associated to the currently selected curve. Maybe there's no curve selected?")
+            return -1
+        return dataObject
+        
+    def readOperationsFromDataObject(self,dataObject):
+        """
+        Get the parameters from the operations part of the dataObject to reset the GUI to
+        the used parameters
+        """
+        self.resetFilters()
+        for idx,operation in enumerate(dataObject.operations):
+            if re.search(r"_deltaMethod",str(operation.__name__)):
+                self.comboBoxDeltaMethod.setCurrentIndex(dataObject.operationParameters[idx]["method"])
+            elif re.search(r"_averageUpDown",str(operation.__name__)):
+                self.checkBoxAverage.setChecked(1)
+            elif re.search(r"_offsetCorrection",str(operation.__name__)):
+                self.comboBoxOffset.setCurrentIndex(dataObject.operationParameters[idx]["method"])
+                self.lineEditOffset.setText(str(dataObject.operationParameters[idx]["offset"]))
+            elif re.search(r"_symmetrize",str(operation.__name__)):
+                self.comboBoxSymmetrize.setCurrentIndex(dataObject.operationParameters[idx]["method"])
+                if dataObject.operationParameters[idx]["symm_step"]:
+                    self.lineEditSymmStep.setText(str(dataObject.operationParameters[idx]["symm_step"]))
+                    self.checkBoxAdmrData.setChecked(1)
+                elif dataObject.operationParameters[idx]["symm_center"]:
+                    self.lineEditSymmStep.setText(str(dataObject.operationParameters[idx]["symm_center"]))
+            elif re.search(r"_normalize",str(operation.__name__)):
+                self.comboBoxNormalize.setCurrentIndex(dataObject.operationParameters[idx]["method"])
+           # elif re.search(r"_averageUpDown",str(operation.__name__)):               
                 
-        #FIXME: this is just a reference for how to get the tdms file index belonging to a curve item. use to reset ui to same settings
-        #tdmsFileIdx = [i for i, v in enumerate(self.dataObjectTdmsFile) if v[0] == dataObject][0]
-        #tdmsFileName = self.parent().comboBoxFile.itemText(tdmsFileIdx)
+    def resetFilters(self):
+        """
+        Resets the GUI for the filters back to the default state (all disabled)
+        """
+        self.checkBoxAdmrData.setChecked(0)
+        self.checkBoxAntiSymmetrize.setChecked(0)
+        self.checkBoxAverage.setChecked(0)
+        self.comboBoxDeltaMethod.setCurrentIndex(0)
+        self.comboBoxNorm.setCurrentIndex(0)
+        self.comboBoxOffset.setCurrentIndex(0)
+        self.comboBoxSymmetrize.setCurrentIndex(0)
+        self.lineEditOffset.clear()
+        self.lineEditSymmStep.clear()
+        
+    def export_ascii(self):
+        """
+        Save the (one) currently selected curve as ascii
+        """
+        dataObject = self.findAssociatedDataObject()
+        
+        if(-1 == dataObject):
+            return
         
         fd = QFileDialog()
         fd.setDefaultSuffix(".dat")
@@ -539,6 +618,7 @@ class previewTransportDataWindow(QWidget):
         the currently used one and fill group and channel boxes appropriately)
         """
         l.debug("Setting current TDMS file to id %d of %d"%(index, len(self.tdmsFiles)))
+        self.comboBoxFile.setCurrentIndex(index)
         self.currentTdmsFile = self.tdmsFiles[index]
         self.fillGroupBox(0)
 
@@ -577,8 +657,7 @@ class previewTransportDataWindow(QWidget):
         self.fillChannelBoxes(0)
 
         # Fill channel boxes when user changes group
-        self.groupBox.activated['int'].connect(self.fillChannelBoxes)       
-
+        self.groupBox.activated['int'].connect(self.fillChannelBoxes)     
         
     def fillChannelBoxes(self,index):
         """
@@ -590,6 +669,7 @@ class previewTransportDataWindow(QWidget):
         index: int
             unused, for compatibility with signals
         """
+        l.debug("index %i" %index)
         self.channelList = self.currentTdmsFile.group_channels(str(self.groupBox.currentText()))
         
         # Store currently selected channels
