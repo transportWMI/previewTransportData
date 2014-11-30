@@ -447,12 +447,12 @@ class plotWidget(QWidget):
         self.plot.add_item(fitCurve)
 
         l.info(u"cos fit: amplitude %.3e, frequency %.3e, phase %.3e, offset y0 %.3e"%(amplitude, frequency, phase, y0))
-        label = make.label( """<i>cos()-fit (%s)</i><br/>
+        label = make.label(u"""<i>cos()-fit (%s)</i><br/>
             amplitude %.3e<br/>
             period %.3e°<br/>
             phase %.3e°<br/>
             offset y0 %.3e
-            """%(curveItem.title().text(), amplitude, np.rad2deg(2*np.pi/frequency), np.rad2deg(phase), y0), 
+            """%(curveItem.title().text(), amplitude, np.rad2deg(2*np.pi/frequency), np.rad2deg(phase), y0),
             (curveItem.boundingRect().left(), curveItem.boundingRect().top()),(0.1,0.1),
             "BL",
             title = u"cos(%s)"%curveItem.title().text())
