@@ -16,6 +16,7 @@ import nptdms
 import re
 from lib.DataObject import DataObject
 import lib.transportdata as transdat
+import pickle
 
 import logging
 logging.basicConfig()
@@ -212,10 +213,10 @@ class plotWidget(QWidget):
         toolbar.addAction(u"cos²", self.fitCosSq) 
         toolbar.addAction("residual", self.calculateResidual)
         toolbar.addSeparator()
-        toolbar.addAction("autoscale", self.plot.do_autoscale)      
+        toolbar.addAction("autoscale", self.plot.do_autoscale)
         toolbar.addSeparator()
         toolbar.addAction("ascii", self.export_ascii).setDisabled(0)      
-        toolbar.addAction("code", self.export_objects).setDisabled(1)
+        toolbar.addAction("pickle", self.export_objects).setDisabled(0)
         #  Putting it all together
         vlayout = QVBoxLayout()
         vlayout.addWidget(groupDataProcess)
@@ -324,7 +325,30 @@ class plotWidget(QWidget):
 
         
     def export_objects(self):
-        return
+        self.dataObjects
+        
+        if not len(self.dataObjects):
+            return
+        
+        fd = QFileDialog()
+        fd.setDefaultSuffix(".py")
+        fd.setAcceptMode(QFileDialog.AcceptSave)
+        fname = fd.getSaveFileName(self,u"Choose python file to save generated code","",u"Python file (*.py);;All files (*.*)")
+
+        py = """# -*- coding: utf-8 -*-
+import pickle
+from lib.DataObject import DataObject
+dataObjects = []
+"""
+        for idx, dataObject in enumerate(self.dataObjects):
+            objectFname = fname + "-" + str(idx)
+            py += """
+dataObjects.append(pickle.load(open(\"%s\", \"rb\")))
+"""%(objectFname)
+            pickle.dump(dataObject, open(objectFname, "wb"))
+
+        with open(fname, "wb") as f:
+            f.write(py)
             
     def uiSymmetrization(self, state):
         """ 

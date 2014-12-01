@@ -312,6 +312,16 @@ class DataObject():
         return self.xCalc, self.yCalc
         
     def operationsToString(self):
+        """
+        Serialize operations that have been applied to the data
+        and their arguments
+        
+        Returns
+        -------
+        
+        opString : string
+        
+        """
         opString = ""
         for idx, operation in enumerate(self.operations):
             opString += str(operation.__name__) + ":\n"
@@ -319,6 +329,6 @@ class DataObject():
         return opString
             
     def saveASCII(self, fname):
-        header = str(self) + self.operationsToString()
+        header = str(self) + "\n" + self.operationsToString()
         np.savetxt(fname, np.transpose((self.xCalc, self.yCalc)), header = header)
         
