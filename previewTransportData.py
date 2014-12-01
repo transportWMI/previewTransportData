@@ -188,9 +188,9 @@ class plotWidget(QWidget):
         hLayoutData1 = QHBoxLayout()
         hLayoutData1.addWidget(self.comboBoxDeltaMethod)
         hLayoutData1.addWidget(self.checkBoxAverage)
+        hLayoutData1.addWidget(self.comboBoxNorm)
         hLayoutData1.addWidget(self.comboBoxOffset)
         hLayoutData1.addWidget(self.lineEditOffset)
-        hLayoutData1.addWidget(self.comboBoxNorm)
         
         hLayoutData2 = QHBoxLayout()
         hLayoutData2.addWidget(self.comboBoxSymmetrize)
@@ -372,8 +372,8 @@ class plotWidget(QWidget):
             currentDataObject.symmetrize(self.comboBoxSymmetrize.currentIndex(),symm_step = (self.lineEditSymmStep.text().toDouble())[0])
         else:
             currentDataObject.symmetrize(self.comboBoxSymmetrize.currentIndex(),symm_center = (self.lineEditSymmStep.text().toDouble())[0])
-        currentDataObject.offsetCorrection(self.comboBoxOffset.currentIndex(), offset = (self.lineEditOffset.text().toDouble())[0])
         currentDataObject.normalize(self.comboBoxNorm.currentIndex())
+        currentDataObject.offsetCorrection(self.comboBoxOffset.currentIndex(), offset = (self.lineEditOffset.text().toDouble())[0])
 
         x,y = currentDataObject.processData()
         l.debug(str(currentDataObject))
