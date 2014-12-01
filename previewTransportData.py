@@ -17,6 +17,7 @@ import re
 from lib.DataObject import DataObject
 import lib.transportdata as transdat
 
+import os
 import logging
 logging.basicConfig()
 l = logging.getLogger(__name__)
@@ -587,26 +588,28 @@ class previewTransportDataWindow(QWidget):
         Read TDMS file from QFileDialog and add it to the list of TDMS files 
         and it's name to self.comboBoxFile
         Set this Tdms file to be the currently active one afterwards
-        """
-        filename = QFileDialog.getOpenFileName(self,u"Open file","",u"TDMS (*.tdms);;All files (*.*)")
-        
-        # Catch abortion of QFileDialog        
-        if "" == filename:
-            l.error(u"No file selected")
-            return
+        """        
+        if self.widget.currentDataObject:       
+            currentDir = self.widget.currentDataObject.path
+        else:
+            currentDir = ""
+
+        filenames = QFileDialog.getOpenFileNames(self, "Open Tdms file(s)", currentDir, u"TDMS (*.tdms);;All files (*.*)")
             
-        # Catch error in opening file  ~ TODO ~ could specify error?
-        try:             
-            self.tdmsFiles.append(nptdms.TdmsFile(filename))
-        except:
-            l.error(u"Error opening file")
-            return
-        
-        self.comboBoxFile.addItem(filename)
-        self.comboBoxFile.setEnabled(1)           
-        
-        self.comboBoxFile.setCurrentIndex(self.comboBoxFile.count()-1)
-        
+        for filename in enumerate(filenames):
+            # Catch error in opening file  ~ TODO ~ could specify error?
+            try:             
+                self.tdmsFiles.append(nptdms.TdmsFile(str(filename[1])))
+            except:
+                l.error(u"Error opening file")
+                return
+            
+            self.comboBoxFile.addItem(filename[1])
+            self.comboBoxFile.setEnabled(1)           
+            
+            self.comboBoxFile.setCurrentIndex(self.comboBoxFile.count()-1)
+            
+        # First tdms file that's loaded, so connect signal to combobox now
         if self.comboBoxFile.count() == 1:
             self.setCurrentTdmsFile(0)
             self.comboBoxFile.currentIndexChanged['int'].connect(self.setCurrentTdmsFile)
